@@ -6,7 +6,12 @@ Summarised from the last 30 commits. Grouped by feature area. Newest changes fir
 
 ## Project
 
-- Renamed the project from Espanyolo to DeChats. Updated the nav banner logo (header and slide-out panel), the Login screen heading, the browser tab title in `index.html`, the `package.json` package name, and the doc headers in `CHANGELOG.md`, `CLAUDE.md` and `ARCHITECTURE.md`. Renamed the GitHub repository `barryhea/espanyolo` → `barryhea/dechats` and repointed the `origin` remote. The Supabase `project_id`, the Vercel project name and the Vercel domain are deliberately unchanged.
+- **Renamed the project from Espanyolo to DeChats.** In the app: the nav banner logo (header and slide-out panel), the Login screen heading, the browser tab title in `index.html`, and the `package.json` / `package-lock.json` package name (lowercased to `dechats` per npm naming rules). In the docs: the headers of `CHANGELOG.md`, `CLAUDE.md` and `ARCHITECTURE.md`.
+- Renamed the GitHub repository `barryhea/espanyolo` → `barryhea/dechats`, and repointed the local `origin` remote at the new URL.
+- Renamed the Vercel project to `dechats`; production now serves from `dechats-learn.vercel.app`. The local `.vercel/project.json` link was refreshed to match (untracked — `.vercel` is gitignored).
+- Renamed the local working folder `~/ClaudeProjects/espanyolo` → `~/ClaudeProjects/dechats`, and updated the absolute paths in `.claude/settings.local.json` that pointed at the old location.
+- No code changes were needed for the domain switch: the OAuth redirect in `Login.jsx` is built from `window.location.origin`, so it follows the deployed host automatically. Note that the new domain must be present in the Supabase Auth redirect allow-list and the Google OAuth authorised redirect URIs — those live in the respective dashboards, not in this repo.
+- The Supabase `project_id` in `supabase/config.toml` is deliberately unchanged: it is the linkage to the remote Supabase project, not a display name, and changing it would break `supabase db push --linked`.
 
 ---
 
