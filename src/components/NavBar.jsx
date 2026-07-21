@@ -122,7 +122,7 @@ export default function NavBar({ rightContent }) {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <span style={styles.logo}>espanyolo</span>
+        <span style={styles.logo}>DeChats</span>
         <div style={styles.right}>{rightContent ?? null}</div>
       </header>
 
@@ -136,7 +136,7 @@ export default function NavBar({ rightContent }) {
           onClick={e => e.stopPropagation()}
         >
           <div style={styles.panelTop}>
-            <span style={styles.panelLogo}>espanyolo</span>
+            <span style={styles.panelLogo}>DeChats</span>
             <button style={styles.panelClose} onClick={() => setOpen(false)}>✕</button>
           </div>
           <div style={styles.navRow}>

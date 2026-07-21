@@ -34,7 +34,7 @@ export default function Login() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: '1.5rem' }}>
-      <h1>Espanyolo</h1>
+      <h1>DeChats</h1>
       <p>Learn Spanish, one word at a time.</p>
       {authError && <p style={{ color: 'red' }}>{authError}</p>}
       <button type="button" onClick={handleGoogleLogin} disabled={signingIn}>

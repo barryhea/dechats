@@ -1,4 +1,4 @@
-# CLAUDE.md — Espanyolo Project
+# CLAUDE.md — DeChats Project
 
 > **Read this file in full before making any changes in a session.**
 > It is the authoritative reference for file responsibilities, non-negotiable rules, and known issues.

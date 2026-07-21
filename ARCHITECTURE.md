@@ -1,4 +1,4 @@
-# ARCHITECTURE.md — Espanyolo Supabase Schema
+# ARCHITECTURE.md — DeChats Supabase Schema
 
 > Generated from `supabase/migrations/` and `src/` source files.
 > Update this file whenever a schema change is made or a component's data access changes.

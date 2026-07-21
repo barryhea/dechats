@@ -1,6 +1,12 @@
-# CHANGELOG.md — Espanyolo
+# CHANGELOG.md — DeChats
 
 Summarised from the last 30 commits. Grouped by feature area. Newest changes first within each group.
+
+---
+
+## Project
+
+- Renamed the project from Espanyolo to DeChats. Updated the nav banner logo (header and slide-out panel), the Login screen heading, the browser tab title in `index.html`, the `package.json` package name, and the doc headers in `CHANGELOG.md`, `CLAUDE.md` and `ARCHITECTURE.md`. Renamed the GitHub repository `barryhea/espanyolo` → `barryhea/dechats` and repointed the `origin` remote. The Supabase `project_id`, the Vercel project name and the Vercel domain are deliberately unchanged.
 
 ---
 
