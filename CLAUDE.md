@@ -106,6 +106,25 @@ Each AR tense stage (Present / Past / Future) runs a 10-question session. The pa
 
 ---
 
+## Permission prompts
+
+Whenever Claude Code is about to ask for permission to run a bash command, it must first give a one-sentence plain English explanation of what the command does and why, written for a non-technical reader. Put the explanation in the reply immediately before the tool call, so it is on screen when the approval prompt appears.
+
+Format:
+
+> This command [plain English description of what it does], so that [reason].
+
+Guidelines:
+
+- No jargon, no flag names, no file paths unless the path is the point. Say "saves a snapshot of the changes" rather than "runs `git commit`".
+- Say what the command *changes*, and be explicit when it changes nothing (read-only) — that is the most useful thing to know before approving.
+- Flag anything hard to undo — deleting files, force-pushing, rewriting history, pushing to production — in the same sentence.
+- One command, one sentence. For a batched or piped command, describe the overall effect rather than each part.
+
+Scope note: this rule governs the text Claude writes before the call. The approval dialog itself is rendered by Claude Code and cannot be modified from this file, so the explanation appears in the message above it, not inside the prompt box.
+
+---
+
 ## Known Issues
 
 *This section should be updated whenever a bug or limitation is discovered. Include the date and a brief description.*
