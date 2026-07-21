@@ -6,6 +6,9 @@ Summarised from the last 30 commits. Grouped by feature area. Newest changes fir
 
 ## Project
 
+- **Added a Vercel Cron Job to stop the shared Supabase project auto-pausing.** New serverless function `api/keep-warm.js` makes one authenticated read (`select id limit 1`) against `dechats.verbs` using the existing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` env vars, and returns 200 on success. `verbs` was chosen because its RLS policy ("Verbs are publicly readable") permits anon SELECT, so no service-role key is needed; the `Accept-Profile: dechats` header is required since `dechats` is not the default PostgREST schema.
+- The cron entry lives in `vercel.json` under `crons`, on schedule `0 9 */3 * *` (09:00 UTC every third day of the month). Note that `*/3` counts from the 1st and resets each month, so the gap across a month boundary can stretch to 4 days — still well inside Supabase's 7-day inactivity window. The endpoint is unauthenticated and read-only; if that becomes a concern, gate it on a `CRON_SECRET` compared against the `Authorization` header.
+- The existing catch-all rewrite to `/index.html` does not shadow the function: Vercel resolves the filesystem, including `api/`, before applying `rewrites`.
 - **Renamed the project from Espanyolo to DeChats.** In the app: the nav banner logo (header and slide-out panel), the Login screen heading, the browser tab title in `index.html`, and the `package.json` / `package-lock.json` package name (lowercased to `dechats` per npm naming rules). In the docs: the headers of `CHANGELOG.md`, `CLAUDE.md` and `ARCHITECTURE.md`.
 - Renamed the GitHub repository `barryhea/espanyolo` → `barryhea/dechats`, and repointed the local `origin` remote at the new URL.
 - Renamed the Vercel project to `dechats`; production now serves from `dechats-learn.vercel.app`. The local `.vercel/project.json` link was refreshed to match (untracked — `.vercel` is gitignored).
