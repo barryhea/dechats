@@ -13,6 +13,12 @@
 - [verbs](#verbs)
 - [user\_verb\_progress](#user_verb_progress)
 - [saved\_quizzes](#saved_quizzes)
+- [verb\_units](#verb_units)
+- [verb\_unit\_members](#verb_unit_members)
+- [user\_unit\_progress](#user_unit_progress)
+- [user\_unit\_pronoun\_progress](#user_unit_pronoun_progress)
+- [user\_review\_items](#user_review_items)
+- [user\_verb\_streak](#user_verb_streak)
 
 ---
 
@@ -381,3 +387,128 @@ Each element of `recent_sessions`: `{ at, correct, total, tense: { past|present|
 | Column | Read by | Written by |
 |--------|---------|------------|
 | `recent_sessions` | `VerbMatchTree.jsx` (`saveSession` read-modify-write; future overview screen) | `VerbMatchTree.jsx` (`saveSession`, on session completion) |
+
+---
+
+# Verb learning Path
+
+Added in migration `20261012002453_verb_learning_path` (applied 2026-10-12). The Path replaces the nine verb categories with **18 units**, each one conjugation pattern in one tense (e.g. P4 = "Present: -GO verbs"). Source of truth: `design-notes/verb-learning-plan.xlsx` (Plan tab → `verb_units`; Verbs tab step columns → `verb_unit_members`).
+
+Unit codes and order: **P1–P9** Present (tense 1), **F1–F2** Future (tense 3), **T1–T7** Past (tense 2). Every one of the 70 verbs is in exactly one unit per tense (210 memberships).
+
+The six tables below are additive. The old verb tables (`user_verb_progress`, `user_verb_conjugation_progress`, etc.) and their rows were left untouched. **No component reads or writes these tables yet.**
+
+---
+
+## `verb_units`
+
+Static unit content, one row per Path unit (18 rows).
+
+**RLS:** enabled — publicly readable (`SELECT USING (true)`, like `verbs`); no write policies.
+
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| `id` | TEXT | — | Primary key; step code (`P1`…`P9`, `F1`, `F2`, `T1`…`T7`). CHECK `^[PFT][0-9]+$` |
+| `sort_order` | INTEGER | — | Path order 1–18 (P1–P9, F1–F2, T1–T7); UNIQUE |
+| `tense` | INTEGER | — | 1 = Present, 2 = Past, 3 = Future. CHECK: must agree with the code letter (P→1, T→2, F→3) |
+| `pattern_name` | TEXT | — | e.g. `-GO verbs`, `o→ue boot verbs` |
+| `rule_text` | TEXT | — | "What to learn" rule from the plan |
+| `example_forms` | TEXT | — | Example conjugated forms, comma-separated |
+| `diary_prompt` | TEXT | — | Prompt for the 3-sentence diary exercise |
+| `created_at` | TIMESTAMPTZ | `now()` | Creation timestamp |
+
+---
+
+## `verb_unit_members`
+
+Which verbs belong to which unit (210 rows: 70 verbs × 3 tenses).
+
+**RLS:** enabled — publicly readable; no write policies.
+
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| `unit_id` | TEXT | — | FK → `verb_units.id` |
+| `verb_id` | BIGINT | — | FK → `verbs.id` |
+
+Primary key `(unit_id, verb_id)`; index on `verb_id`.
+
+---
+
+## `user_unit_progress`
+
+One row per `(user_id, unit_id)`: where the user is within a unit.
+
+**RLS:** enabled — users can only read, insert, update, and delete their own rows.
+
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| `user_id` | UUID | — | FK → `auth.users.id` (cascade delete) |
+| `unit_id` | TEXT | — | FK → `verb_units.id` |
+| `sub_stage` | INTEGER | `0` | Same meaning as `t<n>_cj_stage`: 0 Drag, 1 MC, 2 Pronoun, 3 Full conjugation, 4 Done. CHECK 0–4 |
+| `mastered_at` | TIMESTAMPTZ | NULL | When the unit was completed |
+| `created_at` | TIMESTAMPTZ | `now()` | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | `now()` | Last update timestamp (set by the app; no trigger) |
+
+Primary key `(user_id, unit_id)`.
+
+---
+
+## `user_unit_pronoun_progress`
+
+Per-pronoun correct-counts within a unit's sub-stage. Mirrors `user_verb_conjugation_progress`, keyed by unit instead of tense.
+
+**RLS:** enabled — users can only read, insert, update, and delete their own rows.
+
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| `id` | UUID | `gen_random_uuid()` | Primary key |
+| `user_id` | UUID | — | FK → `auth.users.id` (cascade delete) |
+| `unit_id` | TEXT | — | FK → `verb_units.id` |
+| `sub_stage` | INTEGER | — | 1/2/3 (MC/Pronoun/Full Conjugation); CHECK IN (1,2,3) |
+| `pronoun` | TEXT | — | yo/tu/el/nosotros/ellos; CHECK constrained |
+| `correct_count` | INTEGER | `0` | Cumulative correct answers; CHECK `>= 0` |
+| `created_at` | TIMESTAMPTZ | `now()` | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | `now()` | Last update timestamp |
+
+Unique constraint on `(user_id, unit_id, sub_stage, pronoun)`.
+
+---
+
+## `user_review_items`
+
+Spaced review (Leitner boxes) per `(user, unit, verb, pronoun)`.
+
+**RLS:** enabled — users can only read, insert, update, and delete their own rows.
+
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| `id` | UUID | `gen_random_uuid()` | Primary key |
+| `user_id` | UUID | — | FK → `auth.users.id` (cascade delete) |
+| `unit_id` | TEXT | — | Part of composite FK `(unit_id, verb_id)` → `verb_unit_members` (the verb must belong to the unit) |
+| `verb_id` | BIGINT | — | Part of the same composite FK |
+| `pronoun` | TEXT | — | yo/tu/el/nosotros/ellos; CHECK constrained |
+| `box` | INTEGER | `0` | Leitner box; CHECK 0–5 |
+| `due_on` | DATE | `current_date` | Next review date |
+| `last_correct_on` | DATE | NULL | Last day answered correctly |
+| `last_seen_at` | TIMESTAMPTZ | NULL | Last time shown |
+| `created_at` | TIMESTAMPTZ | `now()` | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | `now()` | Last update timestamp |
+
+Unique constraint on `(user_id, unit_id, verb_id, pronoun)`; index on `(user_id, due_on)` for "what's due today" lookups.
+
+---
+
+## `user_verb_streak`
+
+One row per user: daily verb-practice streak.
+
+**RLS:** enabled — users can only read, insert, update, and delete their own rows.
+
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| `user_id` | UUID | — | Primary key; FK → `auth.users.id` (cascade delete) |
+| `current_streak` | INTEGER | `0` | Current run of consecutive active days; CHECK `>= 0` |
+| `longest_streak` | INTEGER | `0` | Best streak; CHECK `>= 0` |
+| `last_active_on` | DATE | NULL | Last day with verb practice |
+| `created_at` | TIMESTAMPTZ | `now()` | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | `now()` | Last update timestamp |

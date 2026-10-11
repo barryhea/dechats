@@ -79,9 +79,16 @@ These rules apply in every session. Do not deviate without explicit user instruc
 
 `Quiz.jsx`, `VerbQuiz.jsx`, and `VerbArTenseQuiz.jsx` are three completely separate quiz engines. They serve different content types and different progress schemas. Never share state, helper functions, or scoring logic across these files. If a utility is genuinely common (e.g. a shuffle function) it must live in a shared util, not be copied from one quiz file to another.
 
-### 2 — Always run `supabase db push --linked` after any schema change
+### 2 — Apply migrations with the shared-project flow, never `supabase db push`
 
-Any migration file added to `supabase/migrations/` must be pushed to the linked remote project before the session ends. Never leave a schema change in local files only.
+Schema changes follow the master CLAUDE.md **section 15** three-stage flow: BUILD (write the file, don't run it) → REVIEW (Barry approves; amendments go in the same file) → APPLY (in the next prompt). DeChats lives on the **shared** Supabase project, where `supabase db push` refuses because the remote history holds other apps' versions. APPLY like this instead:
+
+```bash
+supabase db query --linked -f supabase/migrations/<version>_<name>.sql
+supabase migration repair --status applied <version> --linked
+```
+
+The second command records **only that one version**. Never run the `supabase migration repair --status reverted …` the CLI may suggest — it would wipe other apps' migration history. After applying, verify with read-only queries, and don't leave an approved migration unapplied.
 
 ### 3 — Always refetch Supabase data when navigating back to a screen
 
