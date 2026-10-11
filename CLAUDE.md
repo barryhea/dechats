@@ -106,6 +106,23 @@ Each AR tense stage (Present / Past / Future) runs a 10-question session. The pa
 
 ---
 
+## Completion reports
+
+At the end of **every** task — including one that failed, was abandoned partway, or was blocked — Claude Code writes a completion report. It is written in addition to the usual terminal summary, never instead of it.
+
+1. **File:** `completion-reports/<YYYY-MM-DD-HHMM>-<slug>.md`, using the local time the work finished (`date '+%Y-%m-%d-%H%M'`) and a short kebab-case slug for the task, e.g. `completion-reports/2026-10-12-0030-verb-path-migration.md`. Create the folder if it is missing.
+2. **Latest copy:** overwrite `completion-reports/LATEST.md` with an exact copy of the same report.
+3. **Content**, using these headings:
+   - **What changed** — the outcome in plain language, including what did *not* get done if the task failed.
+   - **Files touched** — every file created, edited or deleted.
+   - **Verification done** — what was checked and how (commands, queries, manual checks), with the result.
+   - **Unresolved** — anything not verified, needing a hand test, still broken, or waiting on a decision from Barry. Write "None" if empty.
+   - The commit hash, or "no commit".
+4. **Order:** write the report after the final commit/push/deploy so it carries the real hash and outcome, then commit the report itself.
+5. **In this repo the reports are committed to git** (not gitignored), so they travel with the code. This overrides the master file's suggestion to gitignore the folder.
+
+---
+
 ## Permission prompts
 
 Whenever Claude Code is about to ask for permission to run a bash command, it must first give a one-sentence plain English explanation of what the command does and why, written for a non-technical reader. Put the explanation in the reply immediately before the tool call, so it is on screen when the approval prompt appears.
