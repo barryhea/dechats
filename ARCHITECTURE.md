@@ -222,7 +222,7 @@ Tracks each user's learning progress for each verb across all quiz stages. One r
 | `stage2_mastery` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx` |
 | `stage3_mastery` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx` |
 | `l4_score` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` |
-| `hidden` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` *(session toggle)*, `VerbCategoryModal.jsx` |
+| `hidden` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbUnitQuiz.jsx` *(read-only, hidden filter)* | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` *(session toggle)*, `VerbCategoryModal.jsx` |
 | `t1_score` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
 | `t2_score` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
 | `t3_score` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
@@ -396,7 +396,36 @@ Added in migration `20261012002453_verb_learning_path` (applied 2026-10-12). The
 
 Unit codes and order: **P1–P9** Present (tense 1), **F1–F2** Future (tense 3), **T1–T7** Past (tense 2). Every one of the 70 verbs is in exactly one unit per tense (210 memberships).
 
-The six tables below are additive. The old verb tables (`user_verb_progress`, `user_verb_conjugation_progress`, etc.) and their rows were left untouched. **No component reads or writes these tables yet.**
+The six tables below are additive. The old verb tables (`user_verb_progress`, `user_verb_conjugation_progress`, etc.) and their rows were left untouched.
+
+### Path conjugation engine — `VerbUnitQuiz.jsx` (route `/verb-unit/:unitId`)
+
+Runs any unit, by URL only for now (no navigation entry yet). It uses the same four sub-stages as the Verbs -AR flow: **0 Drag & Match**, **1 Multiple Choice**, **2 Pronoun** (typed), **3 Full Conjugation** (typed EN → pronoun + conjugation).
+- **Verbs:** taken from `verb_unit_members` for the unit, minus the user's hidden verbs.
+- **Tense:** comes from `verb_units.tense`: 1 → `present_conjugations`, 2 → `past_conjugations`, 3 → `future_conjugations`.
+
+**Pass rule:**
+- **Sub-stages 1–3:** pass when every pronoun (yo, tu, el, nosotros, ellos) reaches 5 cumulative correct. Counts are stored in `user_unit_pronoun_progress`, loaded on entry and upserted on each correct answer. They are monotonic: a wrong answer never lowers a count.
+- **Drag & Match:** passes on a 5-round block in which every pronoun is matched correctly each round. It isn't persisted per pronoun, because the table only allows sub-stages 1–3. This is the same as the AR flow.
+
+When a sub-stage passes, `user_unit_progress.sub_stage` advances. Reaching 4 sets `mastered_at`, and every update sets `updated_at`. If a load finds a sub-stage already passing (e.g. the advance write failed earlier), it advances straight away.
+
+**Sessions:**
+- **Length:** Multiple Choice 15 questions, Pronoun and Full Conjugation 10.
+- **Ordering:** the pronoun sequence never repeats a pronoun back to back, even across a session boundary or reload, so the same verb + pronoun never appears twice in a row. Small units (P9 = 1 verb, T7 = 2, P8/T6 = 3) reuse verbs to fill sessions.
+- **Display:** each verb's English meaning is shown in italics beside the infinitive.
+
+**Empty and error states:**
+- A unit whose verbs are all hidden shows an empty state.
+- An unknown unit id shows an error.
+
+**Old tables:** the engine reads only `user_verb_progress.verb_id where hidden = true`, for the hidden filter, and never writes to any old verb progress table.
+
+**Shared modules:** the engine shares the following with `VerbArTenseQuiz.jsx` (no logic is copied between the engines, per CLAUDE.md Rule 1):
+- `src/utils/arConjugation.js`: pronoun constants, `SUB_LABEL`, `CONJ_PASS_PER_PRONOUN`, question builders, answer normalisation/checking, `pronounSequence`
+- `src/components/ConjQuestionCard.jsx`: the question/feedback card
+- `src/components/ConjResultsCard.jsx`: the results card
+- `ConjDragRound` from `VerbDragMatch.jsx`
 
 ---
 
@@ -432,6 +461,13 @@ Which verbs belong to which unit (210 rows: 70 verbs × 3 tenses).
 
 Primary key `(unit_id, verb_id)`; index on `verb_id`.
 
+### Column access (both content tables)
+
+| Table | Read by | Written by |
+|-------|---------|------------|
+| `verb_units` | `VerbUnitQuiz.jsx` (`loadUnit`: `id, tense, pattern_name, rule_text, example_forms`) | — (seeded by migration) |
+| `verb_unit_members` | `VerbUnitQuiz.jsx` (`loadUnit`: `verb_id` for the unit) | — (seeded by migration) |
+
 ---
 
 ## `user_unit_progress`
@@ -450,6 +486,14 @@ One row per `(user_id, unit_id)`: where the user is within a unit.
 | `updated_at` | TIMESTAMPTZ | `now()` | Last update timestamp (set by the app; no trigger) |
 
 Primary key `(user_id, unit_id)`.
+
+### Column access
+
+| Column | Read by | Written by |
+|--------|---------|------------|
+| `sub_stage` | `VerbUnitQuiz.jsx` (`loadUnit`) | `VerbUnitQuiz.jsx`: created at 0 on first entry (upsert, ignore duplicates); advanced by `advanceFrom` |
+| `mastered_at` | — | `VerbUnitQuiz.jsx` (`advanceFrom`, when sub_stage reaches 4) |
+| `updated_at` | — | `VerbUnitQuiz.jsx` (`advanceFrom`) |
 
 ---
 
@@ -472,9 +516,18 @@ Per-pronoun correct-counts within a unit's sub-stage. Mirrors `user_verb_conjuga
 
 Unique constraint on `(user_id, unit_id, sub_stage, pronoun)`.
 
+### Column access
+
+| Column | Read by | Written by |
+|--------|---------|------------|
+| `correct_count` | `VerbUnitQuiz.jsx` (`loadCounts`, on entering a sub-stage) | `VerbUnitQuiz.jsx` (`saveCount`: upsert on `user_id,unit_id,sub_stage,pronoun` with the incremented count, on each correct answer) |
+| `updated_at` | — | `VerbUnitQuiz.jsx` (`saveCount`) |
+
 ---
 
 ## `user_review_items`
+
+*Not used by any component yet.*
 
 Spaced review (Leitner boxes) per `(user, unit, verb, pronoun)`.
 
@@ -499,6 +552,8 @@ Unique constraint on `(user_id, unit_id, verb_id, pronoun)`; index on `(user_id,
 ---
 
 ## `user_verb_streak`
+
+*Not used by any component yet.*
 
 One row per user: daily verb-practice streak.
 

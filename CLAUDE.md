@@ -22,6 +22,7 @@
 |------|---------------|
 | `src/utils/supabaseClient.js` | Supabase client singleton, initialised from `VITE_SUPABASE_*` env vars |
 | `src/utils/courseData.js` | Static data: `VOCAB_THEMES` and `VERB_CATEGORIES` arrays — the source of truth for theme/category IDs and titles |
+| `src/utils/arConjugation.js` | Shared conjugation helpers for every conjugation engine (VerbArTenseQuiz, VerbUnitQuiz, Mastery, Match Tree): pronoun constants, `SUB_LABEL`, `CONJ_PASS_PER_PRONOUN`, question builders, answer normalisation/checking, `pronounSequence`. Pure functions only |
 
 ### Hooks
 
@@ -35,6 +36,8 @@
 |------|---------------|
 | `src/components/NavBar.jsx` | Top navigation bar with logo, current-route highlighting, and user avatar / logout |
 | `src/components/ProtectedRoute.jsx` | Route guard — redirects unauthenticated users to `/login` |
+| `src/components/ConjQuestionCard.jsx` | Shared conjugation question/feedback card (MC, Pronoun typed, Full Conjugation typed) used by VerbArTenseQuiz and VerbUnitQuiz. Presentational only — engines own state and scoring |
+| `src/components/ConjResultsCard.jsx` | Shared conjugation results card (per-pronoun progress toward 5) used by VerbArTenseQuiz and VerbUnitQuiz |
 
 ---
 
@@ -61,7 +64,8 @@
 | `src/pages/VerbTrainer.jsx` | `/verbs` | Verb Trainer home — category cards with `MasteryStrip7` progress strips. Also owns the `MasteryStrip7` and `segColors` components. Routes to VerbQuiz, VerbArTenseQuiz, VerbCustomQuizSelect. |
 | `src/pages/VerbQuiz.jsx` | `/verb-quiz/:categoryId` | Main verb conjugation quiz engine for general verb categories. Handles L1 drag-and-match, L2 MC, L3 typed, L4 typed. Reads/writes `user_verb_progress`. **Do not share logic with `Quiz.jsx` or `VerbArTenseQuiz.jsx`.** |
 | `src/pages/VerbArTenseQuiz.jsx` | `/verb-ar-tense-quiz` | AR tense-specific quiz (Present → Past → Future). Runs 10-question pronoun-by-pronoun sessions with a pass threshold of 5 correct per pronoun. Reads/writes `user_verb_progress` columns: `t1_cj_stage`, `t2_cj_stage`, `t3_cj_stage`, `t1_score`, `t2_score`, `t3_score`. **Do not share logic with `Quiz.jsx` or `VerbQuiz.jsx`.** |
-| `src/pages/VerbDragMatch.jsx` | *(component, not routed)* | Shared drag-and-match component library — exports `ConjDragRound`, used by VerbQuiz and VerbArTenseQuiz for L1 drag sessions |
+| `src/pages/VerbUnitQuiz.jsx` | `/verb-unit/:unitId` | Verb learning Path conjugation engine — runs any of the 18 units in `verb_units` through Drag & Match → MC → Pronoun → Full Conjugation with the 5-per-pronoun pass rule. Reads/writes only `user_unit_progress` + `user_unit_pronoun_progress` (plus a read-only hidden filter on `user_verb_progress`). URL-only for now. **Do not share logic with the other quiz engines except via the shared modules.** |
+| `src/pages/VerbDragMatch.jsx` | *(component, not routed)* | Shared drag-and-match component library — exports `ConjDragRound`, used by VerbQuiz, VerbArTenseQuiz and VerbUnitQuiz for drag sessions |
 | `src/pages/VerbProgress.jsx` | *(component, not routed)* | Shared progress display library — exports `VerbProgressRow`, `PronounProgressView`, and `PRONOUNS` constants; used by VerbCategoryModal |
 | `src/pages/VerbCategoryModal.jsx` | *(overlay, not routed)* | Verb category card overlay — shows per-verb progress rows, hide/unhide controls, and entry into quiz. Imports from VerbProgress. |
 | `src/pages/VerbCustomQuizSelect.jsx` | `/verb-custom-quiz-select` | Custom quiz configuration screen — verb-level toggles (L1–L4) and session-only per-verb exclusion. Passes selections to VerbCustomQuiz. |
@@ -77,7 +81,7 @@ These rules apply in every session. Do not deviate without explicit user instruc
 
 ### 1 — Never let logic bleed between quiz engines
 
-`Quiz.jsx`, `VerbQuiz.jsx`, and `VerbArTenseQuiz.jsx` are three completely separate quiz engines. They serve different content types and different progress schemas. Never share state, helper functions, or scoring logic across these files. If a utility is genuinely common (e.g. a shuffle function) it must live in a shared util, not be copied from one quiz file to another.
+`Quiz.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` and `VerbUnitQuiz.jsx` are completely separate quiz engines. They serve different content types and different progress schemas. Never share state, helper functions, or scoring logic across these files. If a utility is genuinely common (e.g. a shuffle function) it must live in a shared util, not be copied from one quiz file to another. The conjugation engines (`VerbArTenseQuiz.jsx`, `VerbUnitQuiz.jsx`) share `src/utils/arConjugation.js`, `src/components/ConjQuestionCard.jsx` and `src/components/ConjResultsCard.jsx`.
 
 ### 2 — Apply migrations with the shared-project flow, never `supabase db push`
 

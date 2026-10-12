@@ -24,6 +24,7 @@ const s = {
   dragHeader:      { display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' },
   dragSpanish:     { fontSize: '1.4rem', fontWeight: 700, color: '#111' },
   dragEnglish:     { fontSize: '0.85rem', color: '#888' },
+  dragEnglishInline: { fontSize: '0.9rem', fontWeight: 400, fontStyle: 'italic', color: '#999' },
   dragBank:        { display: 'flex', flexWrap: 'wrap', gap: '0.5rem', minHeight: '48px', backgroundColor: '#f8f8f6', borderRadius: '8px', padding: '0.5rem', border: '1.5px dashed #e0e0e0', alignItems: 'center' },
   dragChip:        { padding: '0.4rem 0.875rem', backgroundColor: '#3b82f6', color: '#fff', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 500, cursor: 'grab', userSelect: 'none', touchAction: 'none', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(59,130,246,0.3)' },
   dragChipSelected:{ padding: '0.4rem 0.875rem', backgroundColor: '#1d4ed8', color: '#fff', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 500, cursor: 'pointer', userSelect: 'none', touchAction: 'none', whiteSpace: 'nowrap', boxShadow: '0 0 0 3px rgba(59,130,246,0.45)', outline: 'none' },
@@ -45,7 +46,9 @@ const s = {
   dragChipGhost:   { position: 'fixed', padding: '0.4rem 0.875rem', backgroundColor: '#3b82f6', color: '#fff', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 500, pointerEvents: 'none', zIndex: 9999, userSelect: 'none', whiteSpace: 'nowrap', boxShadow: '0 4px 16px rgba(59,130,246,0.4)', transform: 'scale(1.08)' },
 }
 
-export function ConjDragRound({ verb, conjKey, onComplete }) {
+// `englishInline`: show the meaning in italics beside the infinitive (as the Match
+// Tree does) instead of on its own line underneath.
+export function ConjDragRound({ verb, conjKey, onComplete, englishInline = false }) {
   const forms = PRONOUNS.map(p => ({ pronounKey: p.key, label: p.label, form: verb[conjKey]?.[p.key] ?? '' }))
 
   const [bank, setBank]               = useState(() => shuffle(forms.map(f => ({ id: f.pronounKey, label: f.form }))))
@@ -229,8 +232,16 @@ export function ConjDragRound({ verb, conjKey, onComplete }) {
   return (
     <div style={s.dragCard}>
       <div style={s.dragHeader}>
-        <span style={s.dragSpanish}>{verb.spanish_infinitive}</span>
-        <span style={s.dragEnglish}>{verb.english}</span>
+        {englishInline ? (
+          <span style={s.dragSpanish}>
+            {verb.spanish_infinitive} <span style={s.dragEnglishInline}>({verb.english})</span>
+          </span>
+        ) : (
+          <>
+            <span style={s.dragSpanish}>{verb.spanish_infinitive}</span>
+            <span style={s.dragEnglish}>{verb.english}</span>
+          </>
+        )}
       </div>
 
       {/* ── Options bank ───────────────────────────────────────────────────── */}

@@ -4,30 +4,22 @@ import { supabase } from '../utils/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
 import NavBar from '../components/NavBar'
 import { ConjDragRound } from './VerbDragMatch'
+import ConjResultsCard from '../components/ConjResultsCard'
+import ConjQuestionCard from '../components/ConjQuestionCard'
+import {
+  PRONOUNS, SUB_LABEL, CONJ_PASS_PER_PRONOUN,
+  shuffle, noConsecutivePronoun,
+  buildMCQuestion, buildPronounQuestion, buildFullConjQuestion,
+  checkPronounAnswer, checkDualAnswer,
+} from '../utils/arConjugation'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const PRONOUNS = [
-  { key: 'yo',       label: 'Yo',            english: 'I'        },
-  { key: 'tu',       label: 'Tú',            english: 'You'      },
-  { key: 'el',       label: 'Él / Ella',     english: 'He / She' },
-  { key: 'nosotros', label: 'Nosotros',      english: 'We'       },
-  { key: 'ellos',    label: 'Ellos / Ellas', english: 'They'     },
-]
-
-// Accepted typed forms for pronouns that cover two people (either half is correct)
-const PRONOUN_ALTERNATIVES = {
-  el:    ['el', 'ella'],
-  ellos: ['ellos', 'ellas'],
-}
 
 const TENSE_CFG = {
   t1: { conjKey: 'present_conjugations', label: 'Present Tense',  cjCol: 't1_cj_stage', scoreCol: 't1_score' },
   t2: { conjKey: 'past_conjugations',    label: 'Past Tense',     cjCol: 't2_cj_stage', scoreCol: 't2_score' },
   t3: { conjKey: 'future_conjugations',  label: 'Future Tense',   cjCol: 't3_cj_stage', scoreCol: 't3_score' },
 }
-
-const SUB_LABEL = ['Drag & Match', 'Multiple Choice', 'Pronoun', 'Full Conjugation']
 
 // The ONLY pass threshold in the AR tense conjugation flow. Conjugation is not
 // about learning the verbs (those are already mastered in the infinitive flow) —
@@ -38,7 +30,7 @@ const SUB_LABEL = ['Drag & Match', 'Multiple Choice', 'Pronoun', 'Full Conjugati
 // per pronoun on every sub-stage, identically — no per-verb counter and no
 // reduced middle-stage value. That per-verb pattern is the separate infinitive
 // verb-learning system in VerbQuiz.jsx and must not be mixed in here.
-const STAGE2_PER_PRONOUN_THRESHOLD = 5
+const STAGE2_PER_PRONOUN_THRESHOLD = CONJ_PASS_PER_PRONOUN
 
 // Persistent per-pronoun conjugation progress now lives in Supabase
 // (user_verb_conjugation_progress), keyed by tense number: t1→1 (Present),
@@ -59,120 +51,6 @@ const CONJ_SNAPSHOT = {
 
 // localStorage key for the one-time Stage 2 data reset
 const STAGE2_RESET_KEY = 'ar-t1-stage2-reset-v2'
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function shuffle(arr) {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
-
-// Reorder so no two adjacent questions share the same pronoun key.
-// Uses a greedy forward-swap: when a repeat is found, find the nearest
-// later item with a different pronoun and swap it into position.
-function noConsecutivePronoun(arr) {
-  const result = [...arr]
-  for (let i = 1; i < result.length; i++) {
-    if (result[i].pronoun.key === result[i - 1].pronoun.key) {
-      for (let j = i + 1; j < result.length; j++) {
-        if (result[j].pronoun.key !== result[i - 1].pronoun.key) {
-          ;[result[i], result[j]] = [result[j], result[i]]
-          break
-        }
-      }
-    }
-  }
-  return result
-}
-
-function levenshtein(a, b) {
-  const m = a.length, n = b.length
-  const dp = Array.from({ length: m + 1 }, (_, i) => Array(n + 1).fill(0).map((_, j) => j === 0 ? i : 0))
-  for (let j = 0; j <= n; j++) dp[0][j] = j
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
-    }
-  }
-  return dp[m][n]
-}
-
-function normalise(str) {
-  return str.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9\s]/g, '').toLowerCase().trim()
-}
-
-function fuzzyMatch(typed, correct) {
-  const a = normalise(typed), b = normalise(correct)
-  if (a === b) return 'exact'
-  const maxLen = Math.max(a.length, b.length)
-  if (maxLen === 0) return 'exact'
-  return (1 - levenshtein(a, b) / maxLen) >= 0.8 ? 'close' : 'wrong'
-}
-
-// ── Shared conjugation results card ─────────────────────────────────────────────
-// The ONE results-card rendering path for every AR tense conjugation sub-stage
-// (Drag & Match, Multiple Choice, Pronoun, Full Conjugation) across all three
-// tenses. Each pronoun is shown as cumulative-correct-toward-five with a uniform
-// denominator of 5 and dots reflecting that same cumulative count, so the display
-// can never diverge between sub-stages again. `cumulativeByKey` holds the persisted
-// cumulative correct count per pronoun key; `sessionScore` (optional) is the
-// just-completed run's tally, shown separately as the session result.
-function ConjResultsCard({ tenseLabel, subLabel, stageNumber, cumulativeByKey, sessionScore, onContinue, onBack }) {
-  const rows = PRONOUNS.map(p => ({
-    label: p.label,
-    cumulative: Math.min(cumulativeByKey[p.key] ?? 0, STAGE2_PER_PRONOUN_THRESHOLD),
-  }))
-  return (
-    <div style={s.page}><NavBar />
-      <main style={{ ...s.main, maxWidth: '560px' }}>
-        <div style={s.card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-            <span style={s.tenseTag}>{tenseLabel}</span>
-            <span style={s.subTagSm}>Stage {stageNumber} · {subLabel}</span>
-          </div>
-          {sessionScore && (
-            <>
-              <p style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0.5rem 0 0.1rem', color: '#111' }}>
-                {sessionScore.correct} / {sessionScore.total} correct
-              </p>
-              <p style={{ fontSize: '0.72rem', color: '#aaa', margin: '0 0 0.85rem' }}>This session's result</p>
-            </>
-          )}
-          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.04em', margin: `${sessionScore ? 0 : '0.5rem'} 0 0.45rem` }}>
-            Progress to graduation · 5 correct per pronoun
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {rows.map(row => (
-              <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ width: '90px', fontSize: '0.85rem', color: '#555', flexShrink: 0 }}>
-                  {row.label}
-                </span>
-                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} style={{
-                      width: '10px', height: '10px', borderRadius: '50%', boxSizing: 'border-box', flexShrink: 0,
-                      backgroundColor: i < row.cumulative ? '#16a34a' : 'transparent',
-                      border: `2px solid ${i < row.cumulative ? '#16a34a' : '#d1d5db'}`,
-                    }} />
-                  ))}
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#aaa', flexShrink: 0 }}>
-                  {row.cumulative} / 5
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <button style={{ ...s.primaryBtn, width: '100%' }} onClick={onContinue}>Continue</button>
-        <button style={s.blueBtn} onClick={onBack}>← Back to Verb Trainer</button>
-      </main>
-    </div>
-  )
-}
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
@@ -475,32 +353,9 @@ export default function VerbArTenseQuiz() {
     }
   }
 
-  function buildPronounQuestion(subStage, tenseKey, verb, pronoun, cfg) {
-    if (subStage === 2) {
-      const form = verb[cfg.conjKey]?.[pronoun.key] ?? ''
-      return {
-        type: 'conj-typed-pron',
-        verb, pronoun,
-        prompt: `${form}  ·  ${verb.spanish_infinitive}`,
-        correct: pronoun.key,
-        correctCandidates: PRONOUN_ALTERNATIVES[pronoun.key] ?? [pronoun.key],
-        multiInput: !!PRONOUN_ALTERNATIVES[pronoun.key],
-        placeholder: 'Type the subject pronoun…',
-        tenseKey,
-      }
-    }
-    const form        = verb[cfg.conjKey]?.[pronoun.key] ?? ''
-    const verbEnglish = verb.english.split('/')[0].replace(/\s*\(.*?\)\s*/g, '').trim()
-    return {
-      type: 'conj-typed-dual',
-      verb, pronoun,
-      prompt: `${pronoun.english} ${verbEnglish}  ·  ${TENSE_CFG[tenseKey].label}`,
-      correctPronoun:           pronoun.key,
-      correctPronounCandidates: PRONOUN_ALTERNATIVES[pronoun.key] ?? [pronoun.key],
-      tripleInput:              !!PRONOUN_ALTERNATIVES[pronoun.key],
-      correctConjugation:       form,
-      tenseKey,
-    }
+  function buildTypedQuestion(subStage, tenseKey, verb, pronoun, cfg) {
+    if (subStage === 2) return { ...buildPronounQuestion(verb, pronoun, cfg.conjKey), tenseKey }
+    return { ...buildFullConjQuestion(verb, pronoun, cfg.conjKey, TENSE_CFG[tenseKey].label), tenseKey }
   }
 
   function startSession(subStage, tenseKey, needsWork, allVerbData, progMap) {
@@ -521,7 +376,7 @@ export default function VerbArTenseQuiz() {
       }
       const rawSess = pronounPool.slice(0, SESS_SIZE).map(pronoun => {
         const verb = visibleVerbs[Math.floor(Math.random() * visibleVerbs.length)]
-        return buildPronounQuestion(subStage, tenseKey, verb, pronoun, cfg)
+        return buildTypedQuestion(subStage, tenseKey, verb, pronoun, cfg)
       })
 
       const sess = noConsecutivePronoun(rawSess)
@@ -546,16 +401,7 @@ export default function VerbArTenseQuiz() {
         for (const verb of shuffle(needsWork)) {
           if (sess.length >= Math.max(15, needsWork.length * 3)) break
           const pronoun = PRONOUNS[Math.floor(Math.random() * PRONOUNS.length)]
-          const form    = verb[cfg.conjKey]?.[pronoun.key] ?? ''
-          const distractors = shuffle(PRONOUNS.filter(p => p.key !== pronoun.key)).slice(0, 3)
-          sess.push({
-            type: 'conj-mc',
-            verb, pronoun,
-            prompt: `${form}  ·  ${verb.spanish_infinitive}`,
-            correct: pronoun.label,
-            options: shuffle([pronoun.label, ...distractors.map(p => p.label)]),
-            tenseKey,
-          })
+          sess.push({ ...buildMCQuestion(verb, pronoun, cfg.conjKey), tenseKey })
         }
       }
     }
@@ -719,24 +565,7 @@ export default function VerbArTenseQuiz() {
     const verbId = question.verb.id
 
     if (question.type === 'conj-typed-pron') {
-      const cands = question.correctCandidates ?? [question.correct]
-      let result
-      if (question.multiInput) {
-        // Order-independent: each input must match a different candidate
-        const r00 = fuzzyMatch(typedAnswer,  cands[0])
-        const r01 = fuzzyMatch(typedAnswer,  cands[1])
-        const r10 = fuzzyMatch(typedAnswer2, cands[0])
-        const r11 = fuzzyMatch(typedAnswer2, cands[1])
-        const aOk = r00 !== 'wrong' && r11 !== 'wrong'
-        const bOk = r01 !== 'wrong' && r10 !== 'wrong'
-        const ok  = aOk || bOk
-        const allExact = (aOk && r00 === 'exact' && r11 === 'exact') || (bOk && r01 === 'exact' && r10 === 'exact')
-        result = !ok ? 'wrong' : allExact ? 'exact' : 'close'
-      } else {
-        result = cands
-          .map(c => fuzzyMatch(typedAnswer, c))
-          .reduce((best, r) => r === 'exact' ? 'exact' : best === 'exact' ? 'exact' : r === 'close' ? 'close' : best, 'wrong')
-      }
+      const result = checkPronounAnswer(question, typedAnswer, typedAnswer2)
       const correct = result !== 'wrong'
       if (!correct) {
         const prog = progressRef.current[verbId] ?? {}
@@ -761,43 +590,8 @@ export default function VerbArTenseQuiz() {
     }
 
     if (question.type === 'conj-typed-dual') {
-      let result, newF1Ok, newF2Ok, newF3Ok
-      if (question.tripleInput) {
-        // 3 inputs: pron1 + pron2 (order-independent) + conjugation
-        const cands = question.correctPronounCandidates
-        const r00 = fuzzyMatch(typedAnswer,  cands[0])
-        const r01 = fuzzyMatch(typedAnswer,  cands[1])
-        const r10 = fuzzyMatch(typedAnswer2, cands[0])
-        const r11 = fuzzyMatch(typedAnswer2, cands[1])
-        const aOk = r00 !== 'wrong' && r11 !== 'wrong'
-        const bOk = r01 !== 'wrong' && r10 !== 'wrong'
-        const pronOk    = aOk || bOk
-        const conjResult = fuzzyMatch(typedAnswer3, question.correctConjugation)
-        const conjOk    = conjResult !== 'wrong'
-        if (!pronOk || !conjOk) {
-          result = 'wrong'
-        } else {
-          const allExact = conjResult === 'exact' && (
-            (aOk && r00 === 'exact' && r11 === 'exact') ||
-            (bOk && r01 === 'exact' && r10 === 'exact')
-          )
-          result = allExact ? 'exact' : 'close'
-        }
-        newF1Ok = pronOk; newF2Ok = pronOk; newF3Ok = conjOk
-      } else {
-        // 2 inputs: single pronoun + conjugation
-        const pronCands  = question.correctPronounCandidates ?? [question.correctPronoun]
-        const pronResult = pronCands
-          .map(c => fuzzyMatch(typedAnswer, c))
-          .reduce((best, r) => r === 'exact' ? 'exact' : best === 'exact' ? 'exact' : r === 'close' ? 'close' : best, 'wrong')
-        const conjResult = fuzzyMatch(typedAnswer2, question.correctConjugation)
-        const pronOk = pronResult !== 'wrong'
-        const conjOk = conjResult !== 'wrong'
-        result = pronOk && conjOk
-          ? (pronResult === 'exact' && conjResult === 'exact' ? 'exact' : 'close')
-          : 'wrong'
-        newF1Ok = pronOk; newF2Ok = conjOk; newF3Ok = null
-      }
+      const { result, f1Ok: newF1Ok, f2Ok: newF2Ok, f3Ok: newF3Ok } =
+        checkDualAnswer(question, typedAnswer, typedAnswer2, typedAnswer3)
       const correct = result !== 'wrong'
       if (!correct) {
         const prog = progressRef.current[verbId] ?? {}
@@ -954,51 +748,6 @@ export default function VerbArTenseQuiz() {
 
   // ── Question / feedback ───────────────────────────────────────────────────
 
-  // Stage 4 per-field feedback state (recomputed each render)
-  const isDualFb  = phase === 'feedback' && question?.type === 'conj-typed-dual'
-  const f1Wrong   = isDualFb && f1Ok === false
-  const f1Correct = isDualFb && f1Ok === true
-  const f2Wrong   = isDualFb && f2Ok === false
-  const f2Correct = isDualFb && f2Ok === true
-  const f3Wrong   = isDualFb && f3Ok === false
-  const f3Correct = isDualFb && f3Ok === true
-  const dualInputStyle = (wrong, correct) => ({
-    ...s.typedInput,
-    ...(wrong   ? { borderColor: '#dc2626', borderWidth: 2 } : {}),
-    ...(correct ? { borderColor: '#16a34a', borderWidth: 2, backgroundColor: '#16a34a', color: '#fff' } : {}),
-  })
-
-  const confirmOk = (() => {
-    if (phase !== 'feedback' || !matchResult) return true
-    if (matchResult !== 'wrong') return true
-    if (question?.type === 'conj-typed-pron' && question?.multiInput) {
-      const cands = question.correctCandidates
-      const r00 = fuzzyMatch(typedAnswer,  cands[0]), r01 = fuzzyMatch(typedAnswer,  cands[1])
-      const r10 = fuzzyMatch(typedAnswer2, cands[0]), r11 = fuzzyMatch(typedAnswer2, cands[1])
-      return (r00 !== 'wrong' && r11 !== 'wrong') || (r01 !== 'wrong' && r10 !== 'wrong')
-    }
-    if (question?.type === 'conj-typed-dual') {
-      if (matchResult !== 'wrong') return true
-      if (question.tripleInput) {
-        const cands = question.correctPronounCandidates
-        // Pron pair: already locked (f1Ok=true) OR both inputs now form a valid pair
-        const pronPairOk = f1Ok === true || (() => {
-          const r00 = fuzzyMatch(typedAnswer,  cands[0]), r01 = fuzzyMatch(typedAnswer,  cands[1])
-          const r10 = fuzzyMatch(typedAnswer2, cands[0]), r11 = fuzzyMatch(typedAnswer2, cands[1])
-          return (r00 !== 'wrong' && r11 !== 'wrong') || (r01 !== 'wrong' && r10 !== 'wrong')
-        })()
-        const conjOkNow = f3Ok === true || fuzzyMatch(typedAnswer3, question.correctConjugation) !== 'wrong'
-        return pronPairOk && conjOkNow
-      }
-      const pronCands = question.correctPronounCandidates ?? [question.correctPronoun]
-      const f1OkNow = f1Ok === true || pronCands.some(c => fuzzyMatch(typedAnswer,  c) !== 'wrong')
-      const f2OkNow = f2Ok === true || fuzzyMatch(typedAnswer2, question.correctConjugation) !== 'wrong'
-      return f1OkNow && f2OkNow
-    }
-    const cands = question.correctCandidates ?? [question.correct]
-    return cands.some(c => fuzzyMatch(typedAnswer, c) !== 'wrong')
-  })()
-
   return (
     <div style={s.page}><NavBar />
       <main style={s.main}>
@@ -1015,208 +764,21 @@ export default function VerbArTenseQuiz() {
           <span style={s.progressLabel}>{currentIdx + 1} / {session.length}</span>
         </div>
 
-        <div style={s.card}>
-          <p style={s.word}>{question.prompt}</p>
-
-          {/* Stage 2: MC — show conjugated form, pick subject pronoun */}
-          {question.type === 'conj-mc' && (
-            <div style={s.optionGrid}>
-              {question.options.map(opt => {
-                let bg = '#fff'
-                if (phase === 'feedback') {
-                  if (opt === question.correct) bg = '#dcfce7'
-                  else if (opt === selectedOpt) bg = '#fee2e2'
-                }
-                return (
-                  <button
-                    key={opt}
-                    style={{ ...s.optionBtn, backgroundColor: bg }}
-                    onClick={() => phase === 'question' && handleMC(opt)}
-                    disabled={phase === 'feedback'}
-                  >
-                    {opt}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Stage 3: typed pronoun — show form, type subject pronoun */}
-          {question.type === 'conj-typed-pron' && (
-            <div style={s.typedArea}>
-              <input
-                ref={inputRef}
-                style={{ ...s.typedInput, ...(phase === 'feedback' && matchResult === 'wrong' ? { borderColor: '#3b82f6', borderWidth: 2 } : {}) }}
-                type="text"
-                value={typedAnswer}
-                onChange={e => setTypedAnswer(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    if (phase === 'question') {
-                      if (question.multiInput) inputRef2.current?.focus({ preventScroll: true })
-                      else handleTyped()
-                    } else if (phase === 'feedback' && matchResult === 'wrong' && confirmOk) handleNext()
-                  }
-                }}
-                disabled={phase === 'feedback' && matchResult !== 'wrong'}
-                placeholder={phase === 'feedback' && matchResult === 'wrong'
-                  ? (question.multiInput ? `${question.correctCandidates[0]}…` : 'Type the correct pronoun to continue…')
-                  : question.placeholder}
-                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false" data-form-type="other"
-              />
-              {question.multiInput && (
-                <input
-                  ref={inputRef2}
-                  style={{ ...s.typedInput, ...(phase === 'feedback' && matchResult === 'wrong' ? { borderColor: '#3b82f6', borderWidth: 2 } : {}) }}
-                  type="text"
-                  value={typedAnswer2}
-                  onChange={e => setTypedAnswer2(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      if (phase === 'question') handleTyped()
-                      else if (phase === 'feedback' && matchResult === 'wrong' && confirmOk) handleNext()
-                    }
-                  }}
-                  disabled={phase === 'feedback' && matchResult !== 'wrong'}
-                  placeholder={phase === 'feedback' && matchResult === 'wrong'
-                    ? `${question.correctCandidates[1]}…`
-                    : question.placeholder}
-                  autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false" data-form-type="other"
-                />
-              )}
-              {phase === 'question' && (
-                <button
-                  style={{ ...s.typedBtn, backgroundColor: (typedAnswer.trim() || typedAnswer2.trim()) ? '#16a34a' : '#f59e0b', color: '#fff' }}
-                  onClick={handleTyped}
-                >
-                  {(typedAnswer.trim() || typedAnswer2.trim()) ? 'Check' : 'Pass'}
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Stage 4: dual typed — per-field green/lock correct, red/editable wrong */}
-          {question.type === 'conj-typed-dual' && (
-            <div style={s.typedArea}>
-              {/* Input 1: pronoun (or first of two pronouns for el/ella, ellos/ellas) */}
-              <input
-                ref={inputRef}
-                style={dualInputStyle(f1Wrong, f1Correct)}
-                type="text"
-                value={typedAnswer}
-                onChange={e => setTypedAnswer(e.target.value)}
-                onFocus={() => { if (f1Wrong) setTypedAnswer('') }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    if (phase === 'question') inputRef2.current?.focus({ preventScroll: true })
-                    else if (phase === 'feedback' && matchResult === 'wrong' && confirmOk) handleNext()
-                  }
-                }}
-                disabled={isDualFb && (matchResult !== 'wrong' || f1Correct)}
-                placeholder={f1Wrong
-                  ? (question.tripleInput ? `${question.correctPronounCandidates[0]}…` : `Pronoun — ${question.correctPronoun}`)
-                  : (question.tripleInput ? 'First subject pronoun…' : 'Subject pronoun (e.g. yo)')}
-                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false" data-form-type="other"
-              />
-              {/* Input 2: second pronoun (tripleInput) or conjugation (non-tripleInput) */}
-              <input
-                ref={inputRef2}
-                style={dualInputStyle(f2Wrong, f2Correct)}
-                type="text"
-                value={typedAnswer2}
-                onChange={e => setTypedAnswer2(e.target.value)}
-                onFocus={() => { if (f2Wrong) setTypedAnswer2('') }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    if (phase === 'question') {
-                      if (question.tripleInput) inputRef3.current?.focus({ preventScroll: true })
-                      else handleTyped()
-                    } else if (phase === 'feedback' && matchResult === 'wrong' && confirmOk) handleNext()
-                  }
-                }}
-                disabled={isDualFb && (matchResult !== 'wrong' || f2Correct)}
-                placeholder={f2Wrong
-                  ? (question.tripleInput ? `${question.correctPronounCandidates[1]}…` : `Conjugation — ${question.correctConjugation}`)
-                  : (question.tripleInput ? 'Second subject pronoun…' : 'Conjugated verb (e.g. hablo)')}
-                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false" data-form-type="other"
-              />
-              {/* Input 3: conjugation (tripleInput only) */}
-              {question.tripleInput && (
-                <input
-                  ref={inputRef3}
-                  style={dualInputStyle(f3Wrong, f3Correct)}
-                  type="text"
-                  value={typedAnswer3}
-                  onChange={e => setTypedAnswer3(e.target.value)}
-                  onFocus={() => { if (f3Wrong) setTypedAnswer3('') }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      if (phase === 'question') handleTyped()
-                      else if (phase === 'feedback' && matchResult === 'wrong' && confirmOk) handleNext()
-                    }
-                  }}
-                  disabled={isDualFb && (matchResult !== 'wrong' || f3Correct)}
-                  placeholder={f3Wrong
-                    ? `Conjugation — ${question.correctConjugation}`
-                    : 'Conjugated verb (e.g. habla)'}
-                  autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false" data-form-type="other"
-                />
-              )}
-              {phase === 'question' && (
-                <button
-                  style={{ ...s.typedBtn, backgroundColor: (typedAnswer.trim() || typedAnswer2.trim() || typedAnswer3.trim()) ? '#16a34a' : '#f59e0b', color: '#fff' }}
-                  onClick={handleTyped}
-                >
-                  {(typedAnswer.trim() || typedAnswer2.trim() || typedAnswer3.trim()) ? 'Check' : 'Pass'}
-                </button>
-              )}
-            </div>
-          )}
-
-          {phase === 'feedback' && (() => {
-            const isMC      = question.type === 'conj-mc'
-            const isDual    = question.type === 'conj-typed-dual'
-            const isCorrect = isMC ? selectedOpt === question.correct : matchResult !== 'wrong'
-            const bannerBg  = isMC
-              ? (isCorrect ? '#dcfce7' : '#fee2e2')
-              : (matchResult === 'exact' ? '#dcfce7' : matchResult === 'close' ? '#fef3c7' : '#fee2e2')
-            const bannerColor = isMC
-              ? (isCorrect ? '#16a34a' : '#dc2626')
-              : (matchResult === 'exact' ? '#16a34a' : matchResult === 'close' ? '#d97706' : '#dc2626')
-
-            let label
-            if (isMC) {
-              label = isCorrect ? 'Correct!' : `Incorrect — ${question.correct}`
-            } else if (isDual) {
-              const pronounLabel = question.tripleInput
-                ? question.correctPronounCandidates.join(' / ')
-                : question.correctPronoun
-              if (matchResult === 'exact') label = 'Correct!'
-              else if (matchResult === 'close') label = `Close — ${pronounLabel}  ·  ${question.correctConjugation}`
-              else label = `Incorrect — ${pronounLabel}  ·  ${question.correctConjugation}`
-            } else {
-              const ans = question.multiInput
-                ? question.correctCandidates.join(' · ')
-                : (question.correct ?? question.correctCandidates?.[0] ?? '')
-              if (matchResult === 'exact') label = 'Correct!'
-              else if (matchResult === 'close') label = `Close — ${ans}`
-              else label = `Incorrect — ${ans}`
-            }
-
-            return (
-              <div style={{ ...s.feedbackBanner, backgroundColor: bannerBg }}>
-                <span style={{ fontWeight: 600, color: bannerColor, fontSize: '0.95rem' }}>{label}</span>
-                <button
-                  style={{ ...s.nextBtn, ...(confirmOk ? {} : { opacity: 0.35, cursor: 'not-allowed' }) }}
-                  onClick={confirmOk ? handleNext : undefined}
-                  disabled={!confirmOk}
-                >
-                  {currentIdx + 1 >= session.length ? 'Finish' : 'Next →'}
-                </button>
-              </div>
-            )
-          })()}
-        </div>
+        <ConjQuestionCard
+          question={question}
+          phase={phase}
+          isLast={currentIdx + 1 >= session.length}
+          selectedOpt={selectedOpt}
+          matchResult={matchResult}
+          f1Ok={f1Ok} f2Ok={f2Ok} f3Ok={f3Ok}
+          typedAnswer={typedAnswer}   setTypedAnswer={setTypedAnswer}
+          typedAnswer2={typedAnswer2} setTypedAnswer2={setTypedAnswer2}
+          typedAnswer3={typedAnswer3} setTypedAnswer3={setTypedAnswer3}
+          inputRef={inputRef} inputRef2={inputRef2} inputRef3={inputRef3}
+          onMC={handleMC}
+          onCheck={handleTyped}
+          onNext={handleNext}
+        />
       </main>
     </div>
   )

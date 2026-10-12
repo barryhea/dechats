@@ -6,6 +6,20 @@ Summarised from the last 30 commits. Grouped by feature area. Newest changes fir
 
 ## Project
 
+- **New verb learning Path engine: `VerbUnitQuiz.jsx` at `/verb-unit/:unitId`** (reachable by URL only; no navigation entry yet).
+  - **Flow:** runs any of the 18 units with the Verbs -AR flow: Drag & Match → Multiple Choice → Pronoun → Full Conjugation.
+  - **Pass rule:** 5 cumulative correct per pronoun per sub-stage, monotonic.
+  - **Verbs and tense:** verbs come from `verb_unit_members`, minus hidden verbs; the tense comes from `verb_units.tense`.
+  - **Progress:** stored only in `user_unit_pronoun_progress` (counts) and `user_unit_progress` (sub-stage, `mastered_at`, `updated_at`).
+  - **Small units:** P9, T7, P8 and T6 fill sessions by reusing verbs. The same verb + pronoun is never asked twice in a row, even across sessions.
+  - **Display:** English meanings are shown in italics beside the infinitive. An all-hidden unit shows an empty state.
+- **Shared conjugation modules (CLAUDE.md Rule 1).** Moved out of `VerbArTenseQuiz.jsx` so both engines import rather than copy:
+  - `src/components/ConjResultsCard.jsx`: the results card
+  - `src/components/ConjQuestionCard.jsx`: the question/feedback card
+  - `src/utils/arConjugation.js`: MC/pronoun/full-conjugation question builders, pronoun answer checks, `SUB_LABEL`, `CONJ_PASS_PER_PRONOUN`, `pronounSequence`
+
+  `VerbArTenseQuiz.jsx` behaviour is unchanged. The typed-input border style was split into separate properties to clear a React style warning; it looks the same. `ConjDragRound` gained an optional `englishInline` prop.
+- **Added `design-notes/` to git**: `verb-learning-plan.xlsx` (source of truth for the Path units) and `verb-inventory.md`.
 - **Applied the verb learning Path migration `20261012002453`** to the shared Supabase project using the master section 15 flow (`supabase db query --linked -f`, then `supabase migration repair --status applied 20261012002453 --linked`), not `db push`. Verified read-only: `verb_units` has 18 rows and `verb_unit_members` has 210, with every verb in exactly one unit per tense. All six new tables have RLS on: 4 own-row policies on each `user_*` table and a public-read policy on each content table. Every pre-existing `dechats` table kept the same row count. The public API serves the content tables, and anonymous reads of `user_unit_progress` return nothing.
 - **Rewrote `CLAUDE.md` Rule 2.** It now points to the master section 15 BUILD → REVIEW → APPLY flow and the two shared-project apply commands, replacing "always run `supabase db push --linked`", which refuses on the shared project.
 - **Documented the six Path tables in `ARCHITECTURE.md`** under a new "Verb learning Path" section.
