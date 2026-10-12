@@ -9,6 +9,7 @@ import VerbCustomQuiz from './pages/VerbCustomQuiz'
 import VerbArTenseQuiz from './pages/VerbArTenseQuiz'
 import VerbUnitQuiz from './pages/VerbUnitQuiz'
 import VerbPathUnit from './pages/VerbPathUnit'
+import VerbReview from './pages/VerbReview'
 import VerbMasteryQuiz from './pages/VerbMasteryQuiz'
 import VerbMatchTree from './pages/VerbMatchTree'
 import VerbDictionary from './pages/VerbDictionary'
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/verb-ar-tense-quiz" element={<Protected><VerbArTenseQuiz /></Protected>} />
         <Route path="/verb-unit/:unitId" element={<Protected><VerbUnitQuiz /></Protected>} />
         <Route path="/verb-path/:unitId" element={<Protected><VerbPathUnit /></Protected>} />
+        <Route path="/verb-review" element={<Protected><VerbReview /></Protected>} />
         <Route path="/verb-mastery-quiz" element={<Protected><VerbMasteryQuiz /></Protected>} />
         <Route path="/verb-match-tree" element={<Protected><VerbMatchTree /></Protected>} />
         <Route path="/verb-dictionary" element={<Protected><VerbDictionary /></Protected>} />

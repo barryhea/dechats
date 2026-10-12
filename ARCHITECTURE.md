@@ -427,6 +427,36 @@ It is refetched on every navigation (Rule 3). The engine's exits (results-card b
 - **`PATH_SECTIONS`**: the Present → Future → Past order, with each section's conjugation column.
 - **`loadPathOverview` / `loadPathUnit`**: the home and unit page data loads. The hidden filter reads only `user_verb_progress.verb_id where hidden = true`.
 
+### Daily Review — `VerbReview.jsx` (route `/verb-review`) + `src/utils/verbReview.js`
+
+The spaced-repetition (Leitner) layer of the Path. All dates are the **device's local date** (`localDateStr`), never UTC.
+
+**Seeding:**
+- When `VerbUnitQuiz` advances a unit to `sub_stage` 4, it inserts one `user_review_items` row per visible verb × 5 pronouns, at box 0, due tomorrow.
+- **Backfill:** loading the Path home seeds any mastered unit that has no items.
+- Both use `upsert … on_conflict=user_id,unit_id,verb_id,pronoun` with ignore-duplicates, so items are never duplicated.
+
+**Session:**
+- **Items:** up to 20 due items (`due_on <= today`, hidden verbs excluded), ordered lowest box first, then oldest `due_on`. Ties are shuffled so units and tenses mix.
+- **No repeats:** `noConsecutiveVerbPronoun` ensures the same verb + pronoun (which recurs across P/F/T units) is never asked twice in a row.
+- **Questions:** each one is a typed Full Conjugation (English → Spanish) through the shared `ConjQuestionCard` and `checkDualAnswer`, showing a tense tag and the infinitive with its italic English meaning.
+
+**Scheduling (`scheduleAnswer`):**
+- **Correct:** box +1 (max 5) and `due_on` = today + 1/2/4/8/16/32 days for the new box 0–5. `last_correct_on` is set to today.
+- **Wrong:** box 0 and `due_on` = tomorrow.
+- `last_seen_at` and `updated_at` are always set.
+
+**End screen:** score, items moved up a box, items due tomorrow, Back to Verb Path, and the Verb Dictionary button.
+
+**Streak (`nextStreak`, `recordStreakActivity`):**
+- **What counts:** a day counts on finishing a Daily Review session, or on the first answered question of a `VerbUnitQuiz` visit.
+- **Rules:** if `last_active_on` was yesterday, the streak continues (+1). If it's older or missing, the streak resets to 1. If it's today, nothing changes. `longest_streak` keeps the maximum.
+- **Display:** the Path home shows the streak only while it's alive (active today or yesterday), otherwise 0 (`displayStreak`).
+
+**Path home additions:** a Daily Review card shows the number due today, or "All caught up · next review <date>", and opens `/verb-review`. Unit rows show an "N due" badge.
+
+**Old tables:** these screens read and write only the Path tables. The only exception is the read-only hidden flag, read through `verbPath.loadHiddenVerbIds`.
+
 ### Path conjugation engine — `VerbUnitQuiz.jsx` (route `/verb-unit/:unitId`)
 
 Runs any unit, by URL only for now (no navigation entry yet). It uses the same four sub-stages as the Verbs -AR flow: **0 Drag & Match**, **1 Multiple Choice**, **2 Pronoun** (typed), **3 Full Conjugation** (typed EN → pronoun + conjugation).
@@ -556,7 +586,7 @@ Unique constraint on `(user_id, unit_id, sub_stage, pronoun)`.
 
 ## `user_review_items`
 
-*Not used by any component yet.*
+Daily Review items. See "Daily Review" above.
 
 Spaced review (Leitner boxes) per `(user, unit, verb, pronoun)`.
 
@@ -578,11 +608,19 @@ Spaced review (Leitner boxes) per `(user, unit, verb, pronoun)`.
 
 Unique constraint on `(user_id, unit_id, verb_id, pronoun)`; index on `(user_id, due_on)` for "what's due today" lookups.
 
+### Column access
+
+| Column | Read by | Written by |
+|--------|---------|------------|
+| `unit_id`, `verb_id`, `pronoun` | `VerbReview.jsx`, `VerbTrainer.jsx` (via `verbReview.js`) | `VerbUnitQuiz.jsx` (seed on mastery), `VerbTrainer.jsx` (backfill) — via `seedUnitReviewItems` |
+| `box`, `due_on` | `VerbReview.jsx` (session order), `VerbTrainer.jsx` (due count, badges, next due date) | seed (0, tomorrow); `VerbReview.jsx` (`saveReviewAnswer`, Leitner) |
+| `last_correct_on`, `last_seen_at`, `updated_at` | — | `VerbReview.jsx` (`saveReviewAnswer`) |
+
 ---
 
 ## `user_verb_streak`
 
-*Not used by any component yet.*
+Daily verb-practice streak. See "Daily Review" above.
 
 One row per user: daily verb-practice streak.
 
@@ -596,3 +634,10 @@ One row per user: daily verb-practice streak.
 | `last_active_on` | DATE | NULL | Last day with verb practice |
 | `created_at` | TIMESTAMPTZ | `now()` | Creation timestamp |
 | `updated_at` | TIMESTAMPTZ | `now()` | Last update timestamp |
+
+### Column access
+
+| Column | Read by | Written by |
+|--------|---------|------------|
+| `current_streak`, `longest_streak`, `last_active_on` | `VerbTrainer.jsx` (streak line), `verbReview.recordStreakActivity` | `recordStreakActivity` — from `VerbReview.jsx` (session finished) and `VerbUnitQuiz.jsx` (first answer of a visit); upsert on `user_id` |
+| `updated_at` | — | `recordStreakActivity` |

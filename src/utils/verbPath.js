@@ -57,6 +57,16 @@ export function nextUpUnit(units, progressByUnit) {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
+// The user's hidden verb ids. Read-only use of user_verb_progress: only the
+// hidden flag is read, and nothing in the Path ever writes the old tables.
+export async function loadHiddenVerbIds(userId, verbIds = null) {
+  let q = supabase.from('user_verb_progress').select('verb_id').eq('user_id', userId).eq('hidden', true)
+  if (verbIds) q = q.in('verb_id', verbIds.length ? verbIds : [-1])
+  const { data, error } = await q
+  if (error) throw new Error(`Could not check which verbs are hidden: ${error.message}`)
+  return new Set((data ?? []).map(r => r.verb_id))
+}
+
 // The user's user_unit_progress rows keyed by unit_id.
 export async function loadUnitProgress(userId) {
   const { data, error } = await supabase
@@ -101,20 +111,17 @@ export async function loadPathUnit(userId, unitId) {
   const ids = (members ?? []).map(m => m.verb_id)
   const idFilter = ids.length ? ids : [-1]
 
-  const [verbsRes, hiddenRes, progressRes] = await Promise.all([
+  const [verbsRes, hidden, progressRes] = await Promise.all([
     supabase.from('verbs')
       .select('id, english, spanish_infinitive, present_conjugations, past_conjugations, future_conjugations')
       .in('id', idFilter),
-    supabase.from('user_verb_progress')
-      .select('verb_id').eq('user_id', userId).eq('hidden', true).in('verb_id', idFilter),
+    loadHiddenVerbIds(userId, ids),
     supabase.from('user_unit_progress')
       .select('unit_id, sub_stage, mastered_at').eq('user_id', userId).eq('unit_id', unit.id).maybeSingle(),
   ])
   if (verbsRes.error)    throw new Error(`Could not load the verbs for ${unit.id}: ${verbsRes.error.message}`)
-  if (hiddenRes.error)   throw new Error(`Could not check which verbs are hidden: ${hiddenRes.error.message}`)
   if (progressRes.error) throw new Error(`Could not load your progress: ${progressRes.error.message}`)
 
-  const hidden = new Set((hiddenRes.data ?? []).map(r => r.verb_id))
   const verbs = (verbsRes.data ?? [])
     .filter(v => !hidden.has(v.id))
     .sort((a, b) => a.spanish_infinitive.localeCompare(b.spanish_infinitive))

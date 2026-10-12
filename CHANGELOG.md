@@ -6,6 +6,14 @@ Summarised from the last 30 commits. Grouped by feature area. Newest changes fir
 
 ## Project
 
+- **Daily Review: spaced repetition for the verb learning Path.** New route `/verb-review` (`VerbReview.jsx`) with logic in `src/utils/verbReview.js`.
+  - **Seeding:** mastering a unit seeds one review item per visible verb × 5 pronouns, at box 0, due tomorrow. Loading the Path backfills mastered units that have none. The unique key prevents duplicates.
+  - **Session:** up to 20 due items, lowest box then oldest due date, mixing units and tenses. The same verb + pronoun is never asked twice in a row. Questions are typed Full Conjugation through the shared card, with a tense tag and the italic English meaning.
+  - **Scheduling:** correct → box +1 (max 5), due today + 1/2/4/8/16/32 days. Wrong → box 0, due tomorrow.
+  - **End screen:** score, moved up, due tomorrow, Back to Verb Path, Verb Dictionary.
+  - **Local dates:** every date uses the device's local date, not UTC.
+- **Verb streak (`user_verb_streak`).** A day counts on finishing a Daily Review or answering any unit question. Active yesterday continues the streak, older resets to 1, today leaves it unchanged, and the longest streak is tracked.
+- **Path home additions:** a Daily Review card (N due today, or "All caught up · next review <date>"), the current streak, and "N due" badges on unit rows.
 - **Verb Trainer home (`/verbs`) is now the verb learning Path.** The nine category cards are gone.
   - **Layout:** all 18 units in sort order under Present → Future → Past, all open. Each shows code, pattern, verb count and a status: not started (grey), in progress with its stage name (orange), or mastered (green).
   - **Next up:** the first unmastered unit is highlighted "Next up", and a **Continue: <unit>** button sits at the top.

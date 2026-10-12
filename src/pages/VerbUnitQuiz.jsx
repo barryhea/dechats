@@ -12,6 +12,7 @@ import {
   buildMCQuestion, buildPronounQuestion, buildFullConjQuestion,
   checkPronounAnswer, checkDualAnswer,
 } from '../utils/arConjugation'
+import { seedUnitReviewItems, recordStreakActivity } from '../utils/verbReview'
 
 // Conjugation engine for the verb learning Path (route /verb-unit/:unitId).
 // Runs any of the 18 units in dechats.verb_units: one conjugation pattern in one
@@ -26,6 +27,8 @@ import {
 // Progress lives only in the Path tables:
 //   user_unit_progress          sub_stage (0–4) and mastered_at, one row per unit
 //   user_unit_pronoun_progress  per-pronoun correct counts for sub-stages 1–3
+//   user_review_items           seeded (visible verbs × 5 pronouns) on mastery
+//   user_verb_streak            a day of activity on the first answer of a visit
 // The only old table read is user_verb_progress, and only its `hidden` flag, to
 // leave hidden verbs out. Nothing is written to the old verb progress tables.
 
@@ -108,6 +111,8 @@ export default function VerbUnitQuiz() {
 
   // Sub-stage as stored in the DB; guards advancement so it only ever moves forward once.
   const storedStageRef = useRef(0)
+  const visibleIdsRef  = useRef([])     // visible verb ids, for review seeding on mastery
+  const streakDoneRef  = useRef(false)  // streak recorded once per visit
   const inputRef  = useRef(null)
   const inputRef2 = useRef(null)
   const inputRef3 = useRef(null)
@@ -171,6 +176,7 @@ export default function VerbUnitQuiz() {
       .filter(v => !hidden.has(v.id))
       .sort((a, b) => a.spanish_infinitive.localeCompare(b.spanish_infinitive))
     setVerbs(visible)
+    visibleIdsRef.current = visible.map(v => v.id)
     if (!visible.length) { setPhase('empty'); return }
 
     const { data: prog, error: progErr } = await supabase
@@ -245,7 +251,19 @@ export default function VerbUnitQuiz() {
       .from('user_unit_progress')
       .upsert(row, { onConflict: 'user_id,unit_id' })
     if (error) { console.warn('[unit] sub-stage advance failed:', error.message); setSaveError(true) }
+    if (to === DONE_SUB_STAGE) {
+      // Mastered: start Daily Review for this unit's visible verbs × 5 pronouns.
+      try { await seedUnitReviewItems(user.id, uId, visibleIdsRef.current) }
+      catch (e) { console.warn('[unit] review seeding failed:', e.message); setSaveError(true) }
+    }
     return to
+  }
+
+  // Answering any question counts as a day of verb practice for the streak.
+  function markActive() {
+    if (streakDoneRef.current) return
+    streakDoneRef.current = true
+    recordStreakActivity(user.id).catch(e => { console.warn('[unit] streak save failed:', e.message); setSaveError(true) })
   }
 
   // ── Drag & Match ──────────────────────────────────────────────────────────
@@ -256,6 +274,7 @@ export default function VerbUnitQuiz() {
   }
 
   async function handleDragComplete(_allCorrect, perPronounResults) {
+    markActive()
     const newBlock = { ...blockPronounCounts }
     PRONOUNS.forEach((p, i) => { if (perPronounResults?.[i]) newBlock[p.key] += 1 })
     setBlockPronounCounts(newBlock)
@@ -301,6 +320,7 @@ export default function VerbUnitQuiz() {
   function handleMC(option) {
     if (phase !== 'question') return
     const correct = option === question.correct
+    markActive()
     if (correct) recordCorrect()
     setSelectedOpt(option)
     setResults(r => [...r, { verb: question.verb, pronoun: question.pronoun, correct }])
@@ -309,6 +329,7 @@ export default function VerbUnitQuiz() {
 
   function handleTyped() {
     if (phase !== 'question') return
+    markActive()
     if (question.type === 'conj-typed-pron') {
       const result  = checkPronounAnswer(question, typedAnswer, typedAnswer2)
       const correct = result !== 'wrong'

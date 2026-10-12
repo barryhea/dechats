@@ -3,11 +3,15 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import NavBar from '../components/NavBar'
 import { PATH_SECTIONS, unitStatus, nextUpUnit, loadPathOverview } from '../utils/verbPath'
+import { loadReviewSummary, loadStreak, displayStreak, formatDay } from '../utils/verbReview'
 
 // Verb Trainer home (/verbs): the verb learning Path. Lists all 18 units from
 // verb_units in sort_order, grouped Present → Future → Past. Every unit is open.
 // Status comes only from the shared unitStatus helper; "Next up" is the first
-// unmastered unit in sort_order. Data is refetched every time this screen is
+// unmastered unit in sort_order. A Daily Review card shows items due today (or
+// "All caught up" with the next due date), unit rows carry an "N due" badge, and
+// the current streak is shown. Loading the Path also backfills review items for
+// any mastered unit that has none. Data is refetched every time this screen is
 // navigated to (CLAUDE.md Rule 3).
 
 export default function VerbTrainer() {
@@ -15,14 +19,26 @@ export default function VerbTrainer() {
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  const [data,  setData]  = useState(null)   // { units, verbCounts, progressByUnit }
-  const [error, setError] = useState('')
+  const [data,   setData]   = useState(null)   // { units, verbCounts, progressByUnit }
+  const [error,  setError]  = useState('')
+  const [review, setReview] = useState(null)   // review summary | { error }
+  const [streak, setStreak] = useState(null)   // user_verb_streak row | null
 
   useEffect(() => {
     if (!user?.id) return
     let cancelled = false
     loadPathOverview(user.id)
-      .then(d => { if (!cancelled) { setError(''); setData(d) } })
+      .then(d => {
+        if (cancelled) return
+        setError(''); setData(d)
+        // Review + streak load after the Path so a failure there never hides the units.
+        loadReviewSummary(user.id, d.progressByUnit)
+          .then(r => { if (!cancelled) setReview(r) })
+          .catch(e => { if (!cancelled) setReview({ error: e.message }) })
+        loadStreak(user.id)
+          .then(r => { if (!cancelled) setStreak(r) })
+          .catch(e => console.warn('[path] streak load failed:', e.message))
+      })
       .catch(e => { if (!cancelled) setError(e.message) })
     return () => { cancelled = true }
   }, [user?.id, location.key])
@@ -41,6 +57,17 @@ export default function VerbTrainer() {
   const { units, verbCounts, progressByUnit } = data
   const nextUp   = nextUpUnit(units, progressByUnit)
   const mastered = units.filter(u => unitStatus(progressByUnit[u.id]).kind === 'mastered').length
+  const streakDays = displayStreak(streak)
+  const dueByUnit  = review?.dueByUnit ?? {}
+
+  let reviewLine
+  if (!review) reviewLine = 'Checking what is due…'
+  else if (review.error) reviewLine = 'Could not load reviews right now.'
+  else if (review.dueCount > 0) reviewLine = `${review.dueCount} ${review.dueCount === 1 ? 'item' : 'items'} due today`
+  else if (review.nextDueOn) reviewLine = `All caught up · next review ${formatDay(review.nextDueOn)}`
+  else if (review.totalItems > 0) reviewLine = 'All caught up'
+  else reviewLine = 'Master a unit to start reviewing it'
+  const reviewDue = (review?.dueCount ?? 0) > 0
 
   return (
     <div style={s.page}>
@@ -49,6 +76,9 @@ export default function VerbTrainer() {
         <header style={s.header}>
           <h1 style={s.title}>Verb Path</h1>
           <p style={s.subtitle}>{units.length} units, one pattern at a time · {mastered} of {units.length} mastered</p>
+          <p style={s.streak} data-streak={streakDays}>
+            🔥 {streakDays}-day streak{streak?.longest_streak ? ` · best ${streak.longest_streak}` : ''}
+          </p>
         </header>
 
         {nextUp ? (
@@ -59,6 +89,19 @@ export default function VerbTrainer() {
         ) : (
           <div style={s.allDone}>Every unit is mastered. ¡Enhorabuena!</div>
         )}
+
+        <button
+          data-review-card
+          style={{ ...s.reviewCard, ...(reviewDue ? s.reviewCardDue : {}) }}
+          onClick={() => navigate('/verb-review')}
+        >
+          <span style={s.reviewIcon}>🔁</span>
+          <span style={s.reviewText}>
+            <span style={s.reviewTitle}>Daily Review</span>
+            <span data-review-line style={{ ...s.reviewSub, ...(reviewDue ? s.reviewSubDue : {}) }}>{reviewLine}</span>
+          </span>
+          <span style={s.chevron}>›</span>
+        </button>
 
         {PATH_SECTIONS.map(section => {
           const sectionUnits = units.filter(u => u.tense === section.tense)
@@ -86,6 +129,7 @@ export default function VerbTrainer() {
                         <span style={s.rowTop}>
                           <span style={s.pattern}>{u.pattern_name}</span>
                           {isNext && <span style={s.nextTag}>Next up</span>}
+                          {dueByUnit[u.id] > 0 && <span data-due={dueByUnit[u.id]} style={s.dueTag}>{dueByUnit[u.id]} due</span>}
                         </span>
                         <span style={s.rowMeta}>
                           {verbCounts[u.id] ?? 0} {(verbCounts[u.id] ?? 0) === 1 ? 'verb' : 'verbs'}
@@ -129,6 +173,22 @@ const s = {
   header:   { display: 'flex', flexDirection: 'column', gap: '0.2rem', textAlign: 'left' },
   title:    { margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#111' },
   subtitle: { margin: 0, fontSize: '0.85rem', color: '#777' },
+  streak:   { margin: '0.15rem 0 0', fontSize: '0.85rem', fontWeight: 600, color: '#c2410c' },
+  reviewCard: {
+    display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%', boxSizing: 'border-box',
+    padding: '0.9rem 1rem', backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '12px',
+    cursor: 'pointer', textAlign: 'left',
+  },
+  reviewCardDue: { border: '2px solid #7c3aed', backgroundColor: '#f5f3ff', boxShadow: '0 1px 6px rgba(124,58,237,0.18)' },
+  reviewIcon:    { fontSize: '1.4rem', flexShrink: 0 },
+  reviewText:    { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.15rem' },
+  reviewTitle:   { fontSize: '1rem', fontWeight: 700, color: '#111' },
+  reviewSub:     { fontSize: '0.85rem', color: '#777', overflowWrap: 'anywhere' },
+  reviewSubDue:  { color: '#6d28d9', fontWeight: 600 },
+  dueTag: {
+    fontSize: '0.65rem', fontWeight: 700, color: '#6d28d9', backgroundColor: '#ede9fe',
+    padding: '0.12rem 0.45rem', borderRadius: '999px', flexShrink: 0,
+  },
   continueBtn: {
     display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%', boxSizing: 'border-box',
     padding: '1rem 1.1rem', border: 'none', borderRadius: '12px', cursor: 'pointer',
