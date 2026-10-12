@@ -1,108 +1,79 @@
-# Completion report — Daily Review (spaced repetition) and verb streak
+# Completion report — gustar fix via per-unit forms_override
 
-**Finished:** 2026-10-12 01:36 (local)
-**Commit:** `543284e` (code and docs). This report is committed separately, straight after it.
-**Deploy:** production deployment `dechats-342xxg1ef` is Ready and aliased to https://dechats-learn.vercel.app. `/verbs` and `/verb-review` return 200, and the live bundle contains Daily Review.
+**Finished:** 2026-10-12 01:51 (local)
+**Commit:** `c3efb60` (migration, code, docs). This report is committed separately, straight after it.
+**Deploy:** production deployment `dechats-hfmf33rc8` is Ready and aliased to https://dechats-learn.vercel.app. `/verb-path/P9` returns 200, and the live bundle contains the override code.
 
 ## What changed
 
-1. **`src/utils/verbReview.js` (new)** holds all Daily Review logic.
-   - **Dates:** local-date helpers using the device's date, never UTC.
-   - **`scheduleAnswer` (Leitner):**
-     - Correct: box +1 (max 5), due today + 1/2/4/8/16/32 days for the new box, `last_correct_on` = today.
-     - Wrong: box 0, due tomorrow.
-     - Always sets `last_seen_at` and `updated_at`.
-   - **Streak rules:** `nextStreak`, `displayStreak` and `recordStreakActivity`.
-   - **Seeding:** `seedUnitReviewItems` upserts on the unique key with ignore-duplicates.
-   - **Backfill:** mastered units with no items are seeded on Path load.
-   - **Session loader:** up to 20 due items, hidden verbs excluded, lowest box then oldest `due_on`, with ties shuffled to mix units and tenses.
-   - **No-repeat ordering:** `noConsecutiveVerbPronoun` keeps priority order unless that would put the same verb + pronoun back to back. It only allows a repeat if no other arrangement exists.
-2. **`/verb-review` (`VerbReview.jsx`, new).**
-   - **Questions:** typed Full Conjugation through the shared `ConjQuestionCard` and `checkDualAnswer`, with a tense tag and the infinitive plus its italic English meaning.
-   - **Saving:** each answer reschedules its item.
-   - **End screen:** score, moved up a box, due tomorrow, current streak, Back to Verb Path and the Verb Dictionary button.
-   - **Empty states:** "All caught up" with the next due date, or "Nothing to review yet" when there are no items.
-3. **`VerbUnitQuiz.jsx`:**
-   - When a unit reaches `sub_stage` 4, it seeds review items for its visible verbs × 5 pronouns (box 0, due tomorrow).
-   - The first answer of a visit (drag round, MC or typed) records the day for the streak.
-4. **Path home (`VerbTrainer.jsx`):**
-   - **Daily Review card:** "N items due today" (highlighted), "All caught up · next review <date>", or "Master a unit to start reviewing it".
-   - **Streak line:** "🔥 N-day streak · best M".
-   - **Badges:** "N due" on unit rows.
-   - **Backfill:** runs on load.
-5. **`verbPath.js`:** new shared `loadHiddenVerbIds` (read-only hidden flag), used by the unit page and Daily Review.
-6. **Route and NavBar:** `/verb-review` added; the NavBar highlights Verbs there.
-7. **Docs:**
-   - `ARCHITECTURE.md`: Daily Review section, plus column access for `user_review_items` and `user_verb_streak`.
-   - `CLAUDE.md`: file inventory updated.
-   - `CHANGELOG.md` updated.
+1. **Migration `supabase/migrations/20261012014439_unit_forms_override.sql`, written and applied** with the shared-project flow (Rule 2): `supabase db query --linked -f …`, then `supabase migration repair --status applied 20261012014439 --linked`.
+   - **Column:** adds a nullable `forms_override JSONB` to `dechats.verb_unit_members`, with a CHECK that it's an object containing yo, tu, el, nosotros and ellos. An optional `english` key holds the prompt verb.
+   - **Data:** sets it for gustar's three memberships, each with `english: "like (it)"`:
+     - P9: `me gusta / te gusta / le gusta / nos gusta / les gusta`
+     - F1: `me gustará … les gustará`
+     - T1: `me gustó … les gustó`
+   - **Safety:** it runs in one transaction and aborts unless exactly those 3 rows end up set. It's additive only; `dechats.verbs` is untouched.
+2. **Shared helpers in `src/utils/arConjugation.js`:**
+   - `withFormsOverride(verb, override, conjKey)` attaches a membership's override, tagged with the unit's tense column.
+   - `conjForms(verb, conjKey)` returns the override only for that tense, otherwise the stored conjugations.
+   - `shortEnglish` uses the override's `english`.
+   - The MC, Pronoun and Full Conjugation builders, and `ConjDragRound`, now read forms through `conjForms`.
+3. **Loaders attach the override:**
+   - `VerbUnitQuiz` (all four sub-stages)
+   - `verbPath.loadPathUnit` (unit page yo and él/ella columns)
+   - `verbReview.loadReviewSession` (per-item verb copies, so each item expects its own unit's form)
+4. **`design-notes/pending-fixes.md`:** the gustar entry is removed (now "None.").
+5. **Docs:** `ARCHITECTURE.md` (the `forms_override` column, how overrides flow, column access) and `CHANGELOG.md`.
 
 ## Files touched
 
-- New: `src/pages/VerbReview.jsx`, `src/utils/verbReview.js`, this report and `completion-reports/LATEST.md`
-- Edited: `src/pages/VerbTrainer.jsx`, `src/pages/VerbUnitQuiz.jsx`, `src/utils/verbPath.js`, `src/App.jsx`, `src/components/NavBar.jsx`, `ARCHITECTURE.md`, `CLAUDE.md`, `CHANGELOG.md`
+- New: `supabase/migrations/20261012014439_unit_forms_override.sql`, this report and `completion-reports/LATEST.md`
+- Edited: `src/utils/arConjugation.js`, `src/utils/verbPath.js`, `src/utils/verbReview.js`, `src/pages/VerbUnitQuiz.jsx`, `src/pages/VerbPathUnit.jsx`, `src/pages/VerbDragMatch.jsx`, `design-notes/pending-fixes.md`, `ARCHITECTURE.md`, `CHANGELOG.md`
 
 ## Verification done
 
-**1. Daily Review browser suite: 62 checks, all passing on 2 consecutive runs.**
-- **Setup:** phone width (390 px), with the browser in **Pacific/Auckland time at 08:00 on 13 Oct** while the UTC date was still 12 Oct. Content data came live from the database; Path progress, review items and the streak were simulated in memory.
-- **Local dates:** "today" = 13 Oct and "tomorrow" = 14 Oct, so the device date is used, not UTC.
-- **Leitner rules:** for boxes 0–5, both correct and wrong:
-  - correct moves the box up by 1 (max 5) and schedules the next review 1/2/4/8/16/32 days out
-  - wrong goes to box 0, due tomorrow
-  - `last_correct_on` is set only on correct answers, and `last_seen_at` / `updated_at` are always set
-- **Streak rules:** yesterday 3→4; today unchanged; older 7→1 with best 7 kept; first day 1; a new best (5→6) is tracked; continues across a month boundary. The displayed streak is 0 once a day is missed.
-- **No-repeat ordering:** 3,000 random lists, with no avoidable repeats, nothing lost, and order kept when there was no conflict.
-- **Seeding on mastery, through the real engine UI:**
-  - P9 reached sub_stage 4 and seeded 5 items (gustar × 5).
-  - P1 seeded 120 items (24 visible verbs × 5) and none for resultar or terminar.
-  - All items were box 0, due 14 Oct.
-  - The seeding request used the unique key with ignore-duplicates.
-  - Answering in the unit session recorded the streak.
-- **Backfill on Path load:**
-  - Mastered T7 with no items got 10 items.
-  - Mastered P2, which already had items, was left alone.
-  - Unmastered F2 got none.
-  - Reloading made no duplicates.
-- **Due ordering and cap:** 33 fixture items, of which 25 were due (future and hidden items excluded).
-  - The card said "25 items due today", and the badges were P1 4, P2 4, P4 5, F1 4, T1 4, T2 4.
-  - The session served exactly the top 20 in order: box 0 (10 Oct → 12 Oct → 13 Oct), then box 1, then box 2. It covered 5 units and all 3 tenses.
-- **Transitions:** every answered item's box, `due_on`, `last_seen_at`, `updated_at` and `last_correct_on` matched the rules, with every third answer wrong.
-- **End screen:** 13/20, 13 moved up, 10 due tomorrow, matching the database. Back to Verb Path then showed "5 items due today".
-- **Box ceiling:** box 5 stays 5 (+32 days), 4→5 (+32) and 2→3 (+8). "Moved up" excluded the box-5 item.
-- **No back-to-back repeats:** 6 full sessions with hablar·yo and hablar·tu each in P1, F1 and T1 never asked the same verb + pronoun twice in a row.
-- **Streak through the UI:** for the yesterday, today, older and new-best cases, the home's streak before, the stored row after, the end-screen streak and the home's streak after all matched.
-- **Empty states:** "All caught up · next review Tue, Oct 20" on the card and on `/verb-review`, with no badges. With no items at all, the card says "Master a unit…" and `/verb-review` says "Nothing to review yet". The empty state writes nothing.
-- **Phone width:** no horizontal scroll on the Path home with the card, a review question, the end screen or the empty state.
-- **Old tables:** writes went only to Path tables, the old progress table was read only for the hidden flag, and there were no console errors or warnings.
+1. **Before applying:** the migration was parse-checked offline (6 statements, check block OK).
+2. **After applying (read-only):**
+   - P9, F1 and T1 hold the expected forms, and `english` = "like (it)".
+   - Exactly 3 overrides exist among 210 memberships.
+   - The migration history contains `20261012014439`.
+   - The public API serves the column.
+3. **New override browser suite (phone width): 33 checks, all passing.**
+   - **Helpers:**
+     - With no override, the verb object is unchanged.
+     - The override applies only to its own tense column.
+     - MC and Pronoun prompts show "me gusta · gustar".
+     - Full Conjugation reads "I like (it)" / "They like (it)" and expects "me gusta".
+     - Answer checking: "me gusta" is exact; stored "gusto" and bare "gusta" are wrong; "Les gusta" is accepted after the usual normalisation.
+     - hablar is unchanged ("I speak" → "hablo").
+   - **P9 end to end through the real UI:**
+     - The drag chips were exactly me/te/le/nos/les gusta, and a drag block advanced the stage.
+     - Every MC and Pronoun question showed only override forms.
+     - Every Full Conjugation prompt was "<pronoun> like (it)", and 30 typed override answers were accepted.
+     - P9 was mastered and seeded 5 gustar review items.
+   - **Unit pages:**
+     - P9 shows yo "me gusta", él/ella "le gusta".
+     - F1 shows "me gustará" / "le gustará".
+     - T1 shows "me gustó" / "le gustó".
+     - hablar on F1 and T1 still shows hablaré / hablará and hablé / habló.
+   - **Daily Review:**
+     - gustar items in P9, F1 and T1 prompt "… like (it)" and expect their own unit's override.
+     - Override answers moved box 1→2.
+     - Typing the stored "gustó" for T1 was marked Incorrect (box 0, due tomorrow).
+     - hablar behaved as before.
+   - **Phone width:** no horizontal scroll on the P9 drag and question screens or the P9, F1 and T1 unit pages.
+4. **Regression: everything rerun and passing.**
+   - Node logic test: 16,200 comparisons plus session checks.
+   - Engine suite: 129 checks (P9 now through the override forms; P1, P3 and T7 and the old AR quiz smoke test still use stored forms).
+   - Path suite: 51 checks.
+   - Daily Review suite: 62 checks.
 
-**2. Regression suites rerun, all passing:**
-- engine suite, 129 checks
-- Path suite, 51 checks
-
-The engine suite's table allow-list was updated to accept the new streak and review writes. Its harness was also hardened to ignore requests still in flight when a test closes a page.
-
-**3. Live database, as you, under the real security rules, in a rolled-back transaction:**
-- Seeding twice left 5 items, not 10.
-- A Leitner update by id worked.
-- Box 6 was rejected.
-- A verb not in its unit (hablar in P9) was rejected by the unit-membership link.
-- A write for another user was rejected.
-- The streak upsert continued from 1 to 2.
-- Another user saw none of the rows.
-- After rollback both tables had 0 rows.
-
-**4. Lint and build:** lint is clean on all changed files, `npm run build` succeeds, and screenshots of the home card, a question and the end screen were checked by eye.
+   The test harness was made override-aware: it reads `forms_override` from the live database when working out correct answers.
+5. **Lint and build:** lint is clean on all changed files (VerbDragMatch's old warning is unchanged), and `npm run build` succeeds. Screenshots of the P9 drag and Pronoun screens were checked by eye.
 
 ## Unresolved / needs a hand test
 
-- **Hand test signed in.** You have no mastered units yet, so Daily Review starts empty.
-  1. Open `/verbs`. The card should say "Master a unit to start reviewing it", with a 0-day streak.
-  2. Answer one question in any unit; the streak becomes 1.
-  3. Master a small unit (P9 is quickest). Supabase should show 5 rows in `dechats.user_review_items` due tomorrow.
-  4. Tomorrow, the card shows "5 items due today".
-- **Decisions for you:**
-  - **Hidden verbs** keep their review items but are left out of due counts and sessions while hidden. They come back if you unhide them.
-  - **Wrong answers** aren't re-asked within the same session; they're rescheduled for tomorrow.
-  - **Streak trigger in units:** the first answer of a unit visit counts, right or wrong.
-  - **Date format** follows the phone's locale ("Tue 20 Oct" or "Tue, Oct 20").
+- **Process note:** you asked for write and apply in one prompt. That skipped the separate REVIEW stage in master section 15 and combined a migration with code changes, which the master file usually keeps apart. The change is additive and easy to reverse (drop the column), and the approval prompt before APPLY described it.
+- **Hand test signed in:** open https://dechats-learn.vercel.app/verb-path/P9. It should show yo "me gusta", él/ella "le gusta". Start it; the drag chips should read me/te/le/nos/les gusta.
+- **Content decision:** P9's rule text mentions "me gustan (several)", but the override drills only the singular "gusta" forms, as specified. Plural practice would need a separate unit or a second override.
+- **Dictionary:** the "View verbs" dictionary popup still shows gustar's stored conjugation table (gusto, gustas…). That's the verb's reference conjugation, and old screens aren't changed.
