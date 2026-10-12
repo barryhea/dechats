@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient'
-import { PRONOUNS } from './arConjugation'
-import { unitStatus, loadHiddenVerbIds } from './verbPath'
+import { PRONOUNS, withFormsOverride } from './arConjugation'
+import { unitStatus, loadHiddenVerbIds, sectionForTense } from './verbPath'
 
 // Daily Review — the spaced-repetition (Leitner) layer of the verb learning Path.
 // Items live in user_review_items, one per (user, unit, verb, pronoun); the daily
@@ -231,19 +231,30 @@ export async function loadReviewSession(userId) {
 
   const verbIds = [...new Set(picked.map(i => i.verb_id))]
   const unitIds = [...new Set(picked.map(i => i.unit_id))]
-  const [verbsRes, unitsRes] = await Promise.all([
+  const [verbsRes, unitsRes, overridesRes] = await Promise.all([
     supabase.from('verbs')
       .select('id, english, spanish_infinitive, present_conjugations, past_conjugations, future_conjugations')
       .in('id', verbIds),
     supabase.from('verb_units').select('id, tense, pattern_name').in('id', unitIds),
+    supabase.from('verb_unit_members')
+      .select('unit_id, verb_id, forms_override')
+      .in('unit_id', unitIds)
+      .not('forms_override', 'is', null),
   ])
   if (verbsRes.error) throw new Error(`Could not load verbs for review: ${verbsRes.error.message}`)
   if (unitsRes.error) throw new Error(`Could not load units for review: ${unitsRes.error.message}`)
+  if (overridesRes.error) throw new Error(`Could not load unit forms for review: ${overridesRes.error.message}`)
+  const overrideOf = Object.fromEntries((overridesRes.data ?? []).map(o => [`${o.unit_id}|${o.verb_id}`, o.forms_override]))
   const verbById = Object.fromEntries((verbsRes.data ?? []).map(v => [v.id, v]))
   const unitById = Object.fromEntries((unitsRes.data ?? []).map(u => [u.id, u]))
   const items = noConsecutiveVerbPronoun(picked)
     .filter(i => verbById[i.verb_id] && unitById[i.unit_id])
-    .map(i => ({ ...i, verb: verbById[i.verb_id], unit: unitById[i.unit_id] }))
+    .map(i => {
+      const unit = unitById[i.unit_id]
+      // Each item gets its own copy of the verb carrying that unit's override (if any).
+      const verb = withFormsOverride(verbById[i.verb_id], overrideOf[`${i.unit_id}|${i.verb_id}`], sectionForTense(unit.tense).conjKey)
+      return { ...i, verb, unit }
+    })
   return { items, summary: summarise(all, todayStr) }
 }
 

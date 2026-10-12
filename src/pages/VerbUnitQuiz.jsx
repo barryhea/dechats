@@ -8,7 +8,7 @@ import ConjQuestionCard from '../components/ConjQuestionCard'
 import { ConjDragRound } from './VerbDragMatch'
 import {
   PRONOUNS, SUB_LABEL, CONJ_PASS_PER_PRONOUN,
-  allPronounsPassed, emptyPronounCounts, shuffle, pronounSequence,
+  allPronounsPassed, emptyPronounCounts, shuffle, pronounSequence, withFormsOverride,
   buildMCQuestion, buildPronounQuestion, buildFullConjQuestion,
   checkPronounAnswer, checkDualAnswer,
 } from '../utils/arConjugation'
@@ -152,7 +152,7 @@ export default function VerbUnitQuiz() {
 
     const { data: members, error: memErr } = await supabase
       .from('verb_unit_members')
-      .select('verb_id')
+      .select('verb_id, forms_override')
       .eq('unit_id', unitRow.id)
     if (memErr) return fail(`Could not load the verbs for ${unitRow.id}.`)
     const ids = (members ?? []).map(m => m.verb_id)
@@ -172,8 +172,11 @@ export default function VerbUnitQuiz() {
       .in('verb_id', ids.length ? ids : [-1])
     if (hidErr) return fail('Could not check which verbs are hidden.')
     const hidden  = new Set((hiddenRows ?? []).map(r => r.verb_id))
+    // A membership's forms_override replaces the stored forms for this unit's tense.
+    const overrides = Object.fromEntries((members ?? []).map(m => [m.verb_id, m.forms_override]))
     const visible = (verbData ?? [])
       .filter(v => !hidden.has(v.id))
+      .map(v => withFormsOverride(v, overrides[v.id], TENSES[unitRow.tense].conjKey))
       .sort((a, b) => a.spanish_infinitive.localeCompare(b.spanish_infinitive))
     setVerbs(visible)
     visibleIdsRef.current = visible.map(v => v.id)

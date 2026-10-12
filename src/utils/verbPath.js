@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient'
-import { SUB_LABEL } from './arConjugation'
+import { SUB_LABEL, withFormsOverride } from './arConjugation'
 
 // Shared verb learning Path helpers. `unitStatus` is the ONE place a unit's status
 // is derived from its user_unit_progress row — the Path home, the unit page and
@@ -105,7 +105,7 @@ export async function loadPathUnit(userId, unitId) {
 
   const { data: members, error: memErr } = await supabase
     .from('verb_unit_members')
-    .select('verb_id')
+    .select('verb_id, forms_override')
     .eq('unit_id', unit.id)
   if (memErr) throw new Error(`Could not load the verbs for ${unit.id}: ${memErr.message}`)
   const ids = (members ?? []).map(m => m.verb_id)
@@ -122,8 +122,11 @@ export async function loadPathUnit(userId, unitId) {
   if (verbsRes.error)    throw new Error(`Could not load the verbs for ${unit.id}: ${verbsRes.error.message}`)
   if (progressRes.error) throw new Error(`Could not load your progress: ${progressRes.error.message}`)
 
+  const conjKey   = sectionForTense(unit.tense)?.conjKey
+  const overrides = Object.fromEntries((members ?? []).map(m => [m.verb_id, m.forms_override]))
   const verbs = (verbsRes.data ?? [])
     .filter(v => !hidden.has(v.id))
+    .map(v => withFormsOverride(v, overrides[v.id], conjKey))
     .sort((a, b) => a.spanish_infinitive.localeCompare(b.spanish_infinitive))
   return { unit, verbs, hiddenCount: hidden.size, progress: progressRes.data ?? null }
 }

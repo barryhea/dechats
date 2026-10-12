@@ -114,15 +114,37 @@ export function fuzzyMatch(typed, correct) {
   return (1 - levenshtein(a, b) / maxLen) >= 0.8 ? 'close' : 'wrong'
 }
 
+// ── Per-unit form overrides ──────────────────────────────────────────────────
+// A Path unit membership can carry forms_override (verb_unit_members): its own
+// five forms for that unit's tense, plus an optional "english" prompt verb — e.g.
+// gustar in P9 drills "me gusta / te gusta …" ("I like (it)") instead of the
+// stored gusto / gustas. Loaders attach it with withFormsOverride; everything that
+// reads forms goes through conjForms, so a verb without an override (and every
+// old screen) behaves exactly as before.
+
+// The verb as used by one unit: carries the override for that unit's tense column.
+export function withFormsOverride(verb, override, conjKey) {
+  return override ? { ...verb, formsOverride: { conjKey, forms: override } } : verb
+}
+
+// The five forms to use for `conjKey`: the unit's override when it is for this
+// tense, otherwise the verb's stored conjugations.
+export function conjForms(verb, conjKey) {
+  const o = verb?.formsOverride
+  return (o && o.conjKey === conjKey ? o.forms : verb?.[conjKey]) ?? {}
+}
+
 // The verb's English meaning without alternatives or notes ("have (possession)"
-// → "have", "let / leave" → "let"), for building English prompts.
+// → "have", "let / leave" → "let"), for building English prompts. A unit
+// override's "english" (e.g. "like (it)") takes precedence.
 export function shortEnglish(verb) {
+  if (verb.formsOverride?.forms?.english) return verb.formsOverride.forms.english
   return verb.english.split('/')[0].replace(/\s*\(.*?\)\s*/g, '').trim()
 }
 
 // Stage 2 "Multiple Choice": show the conjugated form, pick the subject pronoun.
 export function buildMCQuestion(verb, pronoun, conjKey) {
-  const form        = verb[conjKey]?.[pronoun.key] ?? ''
+  const form        = conjForms(verb, conjKey)[pronoun.key] ?? ''
   const distractors = shuffle(PRONOUNS.filter(p => p.key !== pronoun.key)).slice(0, 3)
   return {
     type: 'conj-mc',
@@ -137,7 +159,7 @@ export function buildMCQuestion(verb, pronoun, conjKey) {
 // Stage 3 "Pronoun": show the conjugated form, type the subject pronoun. For
 // el/ella and ellos/ellas both halves are typed (multiInput).
 export function buildPronounQuestion(verb, pronoun, conjKey) {
-  const form = verb[conjKey]?.[pronoun.key] ?? ''
+  const form = conjForms(verb, conjKey)[pronoun.key] ?? ''
   return {
     type: 'conj-typed-pron',
     verb, pronoun,
@@ -162,7 +184,7 @@ export function buildFullConjQuestion(verb, pronoun, conjKey, promptSuffix) {
     correctPronoun:           pronoun.key,
     correctPronounCandidates: PRONOUN_ALTERNATIVES[pronoun.key] ?? [pronoun.key],
     tripleInput:              !!PRONOUN_ALTERNATIVES[pronoun.key],
-    correctConjugation:       verb[conjKey]?.[pronoun.key] ?? '',
+    correctConjugation:       conjForms(verb, conjKey)[pronoun.key] ?? '',
   }
 }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { conjForms } from '../utils/arConjugation'
 
 const PRONOUNS = [
   { key: 'yo',       label: 'Yo',            english: 'I'        },
@@ -49,7 +50,7 @@ const s = {
 // `englishInline`: show the meaning in italics beside the infinitive (as the Match
 // Tree does) instead of on its own line underneath.
 export function ConjDragRound({ verb, conjKey, onComplete, englishInline = false }) {
-  const forms = PRONOUNS.map(p => ({ pronounKey: p.key, label: p.label, form: verb[conjKey]?.[p.key] ?? '' }))
+  const forms = PRONOUNS.map(p => ({ pronounKey: p.key, label: p.label, form: conjForms(verb, conjKey)[p.key] ?? '' }))
 
   const [bank, setBank]               = useState(() => shuffle(forms.map(f => ({ id: f.pronounKey, label: f.form }))))
   const [slots, setSlots]             = useState(() => forms.map(f => ({ pronounKey: f.pronounKey, label: f.label, chip: null })))

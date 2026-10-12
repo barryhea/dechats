@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import NavBar from '../components/NavBar'
 import FilteredDictionaryModal from './FilteredDictionaryModal'
 import { sectionForTense, unitStatus, loadPathUnit } from '../utils/verbPath'
+import { conjForms } from '../utils/arConjugation'
 
 // Verb learning Path unit page (/verb-path/:unitId), mobile-first. Shows the
 // unit's pattern card (rule_text, example_forms), its status (from the shared
@@ -100,7 +101,7 @@ export default function VerbPathUnit() {
           )}
           <ul style={s.verbList}>
             {verbs.map(v => {
-              const forms = v[section?.conjKey] ?? {}
+              const forms = conjForms(v, section?.conjKey)
               return (
                 <li key={v.id} data-verb={v.spanish_infinitive} style={s.verbRow}>
                   <div style={s.verbName}>

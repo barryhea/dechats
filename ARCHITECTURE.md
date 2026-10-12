@@ -517,15 +517,23 @@ Which verbs belong to which unit (210 rows: 70 verbs × 3 tenses).
 |--------|------|---------|-------------|
 | `unit_id` | TEXT | — | FK → `verb_units.id` |
 | `verb_id` | BIGINT | — | FK → `verbs.id` |
+| `forms_override` | JSONB | NULL | Optional per-unit forms replacing the verb's stored conjugations for this unit's tense: `{yo, tu, el, nosotros, ellos}` (all required, CHECK) plus optional `english` (the prompt verb, e.g. `"like (it)"`). Added in migration `20261012014439`. Set only for gustar: P9 `me gusta…les gusta`, F1 `me gustará…`, T1 `me gustó…`, each with `english: "like (it)"`. |
 
 Primary key `(unit_id, verb_id)`; index on `verb_id`.
+
+**Per-unit form overrides.** Loaders attach a membership's `forms_override` to the verb with `withFormsOverride(verb, override, conjKey)` (`src/utils/arConjugation.js`). Every form lookup in the Path goes through `conjForms(verb, conjKey)`, which returns the override only for that unit's tense column. `shortEnglish` uses the override's `english` for prompts ("I like (it)"). That covers:
+- all four `VerbUnitQuiz` sub-stages, including `ConjDragRound`
+- the unit page's yo and él/ella columns
+- Daily Review questions and answer checking
+
+Answer checking is unchanged (the same normalisation). Verbs without an override, `dechats.verbs` itself, and the old screens behave exactly as before. The filtered dictionary modal still shows a verb's stored conjugation table.
 
 ### Column access (both content tables)
 
 | Table | Read by | Written by |
 |-------|---------|------------|
 | `verb_units` | `VerbTrainer.jsx` (`loadPathOverview`: `id, sort_order, tense, pattern_name`); `VerbPathUnit.jsx` (`loadPathUnit`: all content columns); `VerbUnitQuiz.jsx` (`loadUnit`: `id, tense, pattern_name, rule_text, example_forms`) | — (seeded by migration) |
-| `verb_unit_members` | `VerbTrainer.jsx` (`loadPathOverview`: `unit_id`, for verb counts); `VerbPathUnit.jsx` and `VerbUnitQuiz.jsx` (`verb_id` for the unit) | — (seeded by migration) |
+| `verb_unit_members` | `VerbTrainer.jsx` (`loadPathOverview`: `unit_id`, for verb counts); `VerbPathUnit.jsx` and `VerbUnitQuiz.jsx` (`verb_id, forms_override` for the unit); `verbReview.loadReviewSession` (`forms_override` for the session's units) | — (seeded by migration) |
 
 ---
 

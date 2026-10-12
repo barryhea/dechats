@@ -6,6 +6,12 @@ Summarised from the last 30 commits. Grouped by feature area. Newest changes fir
 
 ## Project
 
+- **Fixed the gustar mismatch in Path unit P9, through data.**
+  - **Migration `20261012014439`** (applied with the shared-project flow) adds a nullable `forms_override` JSONB column to `verb_unit_members`. A CHECK requires all five pronouns, and an optional `english` key holds the prompt verb.
+  - **Data:** it sets the column for gustar's three memberships: P9 `me gusta / te gusta / le gusta / nos gusta / les gusta`, F1 `me gustará…`, T1 `me gustó…`, each with `english: "like (it)"`.
+  - **Code:** the shared helpers `withFormsOverride` and `conjForms` in `arConjugation.js` make every Path form lookup use the override. That covers the four VerbUnitQuiz stages (drag included), the unit page's yo / él-ella columns, and Daily Review questions and answer checking.
+  - **Prompts** read "I like (it)". `dechats.verbs`, the old screens and units without overrides are unchanged.
+- Cleared the gustar entry from `design-notes/pending-fixes.md`.
 - **Daily Review: spaced repetition for the verb learning Path.** New route `/verb-review` (`VerbReview.jsx`) with logic in `src/utils/verbReview.js`.
   - **Seeding:** mastering a unit seeds one review item per visible verb × 5 pronouns, at box 0, due tomorrow. Loading the Path backfills mastered units that have none. The unique key prevents duplicates.
   - **Session:** up to 20 due items, lowest box then oldest due date, mixing units and tenses. The same verb + pronoun is never asked twice in a row. Questions are typed Full Conjugation through the shared card, with a tense tag and the italic English meaning.
