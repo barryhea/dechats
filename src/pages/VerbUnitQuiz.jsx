@@ -348,7 +348,9 @@ export default function VerbUnitQuiz() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const back = () => navigate('/verbs')
+  // Exits return to this unit's Path page; an unknown unit goes to the Path home.
+  const back = () => navigate(unit ? `/verb-path/${unit.id}` : '/verbs')
+  const backLabel = unit ? `← Back to ${unit.id}` : '← Back to Verb Path'
 
   if (phase === 'loading') return <div style={s.page}><NavBar /><p style={s.loadingMsg}>Loading…</p></div>
 
@@ -359,7 +361,7 @@ export default function VerbUnitQuiz() {
     return (
       <div style={s.page}><NavBar />
         <main style={s.main}>
-          <button style={s.backBtn} onClick={back}>← Back to Verb Trainer</button>
+          <button style={s.backBtn} onClick={back}>{backLabel}</button>
           <div style={s.card}>
             <p style={{ margin: 0, color: phase === 'error' ? '#c00' : '#555' }}>{message}</p>
           </div>
@@ -423,6 +425,7 @@ export default function VerbUnitQuiz() {
         sessionScore={null}
         onContinue={() => { setBlockPronounCounts(emptyPronounCounts()); loadUnit() }}
         onBack={back}
+        backLabel={backLabel}
       />
     )
   }
@@ -437,6 +440,7 @@ export default function VerbUnitQuiz() {
         sessionScore={{ correct: results.filter(r => r.correct).length, total: results.length }}
         onContinue={loadUnit}
         onBack={back}
+        backLabel={backLabel}
       />
     )
   }

@@ -22,6 +22,7 @@
 |------|---------------|
 | `src/utils/supabaseClient.js` | Supabase client singleton, initialised from `VITE_SUPABASE_*` env vars |
 | `src/utils/courseData.js` | Static data: `VOCAB_THEMES` and `VERB_CATEGORIES` arrays — the source of truth for theme/category IDs and titles |
+| `src/utils/verbPath.js` | Shared verb learning Path helpers: `unitStatus` (the ONLY place a unit's status — not started / in progress + stage / mastered — is derived), `nextUpUnit`, `PATH_SECTIONS` (Present → Future → Past), and the Path data loaders |
 | `src/utils/arConjugation.js` | Shared conjugation helpers for every conjugation engine (VerbArTenseQuiz, VerbUnitQuiz, Mastery, Match Tree): pronoun constants, `SUB_LABEL`, `CONJ_PASS_PER_PRONOUN`, question builders, answer normalisation/checking, `pronounSequence`. Pure functions only |
 
 ### Hooks
@@ -61,13 +62,14 @@
 
 | File | Route | Responsibility |
 |------|-------|---------------|
-| `src/pages/VerbTrainer.jsx` | `/verbs` | Verb Trainer home — category cards with `MasteryStrip7` progress strips. Also owns the `MasteryStrip7` and `segColors` components. Routes to VerbQuiz, VerbArTenseQuiz, VerbCustomQuizSelect. |
+| `src/pages/VerbTrainer.jsx` | `/verbs` | Verb Trainer home = the verb learning **Path**: all 18 units in sort order under Present → Future → Past, each with code, pattern, verb count and status; "Next up" highlight and a Continue button for the first unmastered unit; Verb Dictionary button. Refetches on every visit. Reads only the Path tables (via `verbPath.js`). |
+| `src/pages/VerbPathUnit.jsx` | `/verb-path/:unitId` | Path unit page — pattern card (rule + examples), status, visible verbs with that tense's yo / él-ella forms, Start/Continue into `/verb-unit/:unitId`, and "View verbs" (FilteredDictionaryModal). Refetches on every visit. |
 | `src/pages/VerbQuiz.jsx` | `/verb-quiz/:categoryId` | Main verb conjugation quiz engine for general verb categories. Handles L1 drag-and-match, L2 MC, L3 typed, L4 typed. Reads/writes `user_verb_progress`. **Do not share logic with `Quiz.jsx` or `VerbArTenseQuiz.jsx`.** |
 | `src/pages/VerbArTenseQuiz.jsx` | `/verb-ar-tense-quiz` | AR tense-specific quiz (Present → Past → Future). Runs 10-question pronoun-by-pronoun sessions with a pass threshold of 5 correct per pronoun. Reads/writes `user_verb_progress` columns: `t1_cj_stage`, `t2_cj_stage`, `t3_cj_stage`, `t1_score`, `t2_score`, `t3_score`. **Do not share logic with `Quiz.jsx` or `VerbQuiz.jsx`.** |
 | `src/pages/VerbUnitQuiz.jsx` | `/verb-unit/:unitId` | Verb learning Path conjugation engine — runs any of the 18 units in `verb_units` through Drag & Match → MC → Pronoun → Full Conjugation with the 5-per-pronoun pass rule. Reads/writes only `user_unit_progress` + `user_unit_pronoun_progress` (plus a read-only hidden filter on `user_verb_progress`). URL-only for now. **Do not share logic with the other quiz engines except via the shared modules.** |
 | `src/pages/VerbDragMatch.jsx` | *(component, not routed)* | Shared drag-and-match component library — exports `ConjDragRound`, used by VerbQuiz, VerbArTenseQuiz and VerbUnitQuiz for drag sessions |
 | `src/pages/VerbProgress.jsx` | *(component, not routed)* | Shared progress display library — exports `VerbProgressRow`, `PronounProgressView`, and `PRONOUNS` constants; used by VerbCategoryModal |
-| `src/pages/VerbCategoryModal.jsx` | *(overlay, not routed)* | Verb category card overlay — shows per-verb progress rows, hide/unhide controls, and entry into quiz. Imports from VerbProgress. |
+| `src/pages/VerbCategoryModal.jsx` | *(overlay, not routed)* | Old verb category card overlay — shows per-verb progress rows, hide/unhide controls, and entry into quiz. Imports from VerbProgress. **No longer opened from anywhere** since the Path replaced the category home (2026-10-12); code kept in place. |
 | `src/pages/VerbCustomQuizSelect.jsx` | `/verb-custom-quiz-select` | Custom quiz configuration screen — verb-level toggles (L1–L4) and session-only per-verb exclusion. Passes selections to VerbCustomQuiz. |
 | `src/pages/VerbCustomQuiz.jsx` | `/verb-custom-quiz` | Custom quiz runner — receives selections from VerbCustomQuizSelect and runs the chosen levels for each verb |
 | `src/pages/VerbDictionary.jsx` | `/verb-dictionary` | Searchable list of all verbs with family/progress indicators; links to VerbDetail |
@@ -159,7 +161,7 @@ Scope note: this rule governs the text Claude writes before the call. The approv
 
 | Date | Issue | Status |
 |------|-------|--------|
-| 2026-06-08 | `VerbCategoryModal` tense unlock state is sometimes out of sync with `VerbTrainer` home card progress display | Open |
+| 2026-06-08 | `VerbCategoryModal` tense unlock state is sometimes out of sync with `VerbTrainer` home card progress display | Obsolete — the category home was replaced by the Path on 2026-10-12 |
 | 2026-06-08 | Hidden verbs are excluded from regular quizzes but still appear in the custom quiz screen | Open |
 | 2026-06-08 | AR tense quiz occasionally serves wrong tense conjugations as prompts | Open |
 | 2026-06-08 | `VerbDetail.jsx` stage progress bars show tense completion as grey despite user having completed tenses | Open |

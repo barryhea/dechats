@@ -159,12 +159,12 @@ Pronoun keys used in conjugation objects: `yo`, `tu`, `el`, `nosotros`, `ellos`.
 
 | Column | Read by | Written by |
 |--------|---------|------------|
-| `id` | `VerbTrainer.jsx`, `VerbCategoryModal.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCustomQuiz.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | — |
+| `id` | `VerbCategoryModal.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCustomQuiz.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx`, `VerbUnitQuiz.jsx`, `VerbPathUnit.jsx` | — |
 | `spanish_infinitive` | `VerbCategoryModal.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCustomQuiz.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | — |
 | `english` | `VerbCategoryModal.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCustomQuiz.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | — |
 | `english_alt1` | `VerbQuiz.jsx` | — |
 | `english_alt2` | `VerbQuiz.jsx` | — |
-| `category` | `VerbTrainer.jsx`, `VerbCategoryModal.jsx`, `VerbCustomQuiz.jsx`, `VerbDictionary.jsx` | — |
+| `category` | `VerbCategoryModal.jsx`, `VerbCustomQuiz.jsx`, `VerbDictionary.jsx` | — |
 | `verb_family` | `VerbDictionary.jsx`, `VerbDetail.jsx` | — |
 | `requires_all_answers` | `VerbQuiz.jsx` | — |
 | `present_conjugations` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | — |
@@ -216,19 +216,19 @@ Tracks each user's learning progress for each verb across all quiz stages. One r
 |--------|---------|------------|
 | `id` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | — |
 | `user_id` | — | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` |
-| `verb_id` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` |
-| `current_stage` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` |
+| `verb_id` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` |
+| `current_stage` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` |
 | `drag_match_score` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx` |
 | `stage2_mastery` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx` |
 | `stage3_mastery` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx` |
-| `l4_score` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` |
-| `hidden` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbUnitQuiz.jsx` *(read-only, hidden filter)* | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` *(session toggle)*, `VerbCategoryModal.jsx` |
-| `t1_score` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
-| `t2_score` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
-| `t3_score` | `VerbTrainer.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
-| `t1_cj_stage` | `VerbTrainer.jsx`, `VerbArTenseQuiz.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx` |
-| `t2_cj_stage` | `VerbTrainer.jsx`, `VerbArTenseQuiz.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx` |
-| `t3_cj_stage` | `VerbTrainer.jsx`, `VerbArTenseQuiz.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx` |
+| `l4_score` | `VerbQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDictionary.jsx`, `VerbDetail.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` |
+| `hidden` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbUnitQuiz.jsx`, `VerbPathUnit.jsx` (via `verbPath.js`) *(read-only, hidden filter)* | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` *(session toggle)*, `VerbCategoryModal.jsx` |
+| `t1_score` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
+| `t2_score` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
+| `t3_score` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx`, `VerbCategoryModal.jsx` *(reset)* |
+| `t1_cj_stage` | `VerbArTenseQuiz.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx` |
+| `t2_cj_stage` | `VerbArTenseQuiz.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx` |
+| `t3_cj_stage` | `VerbArTenseQuiz.jsx`, `VerbDetail.jsx` | `VerbArTenseQuiz.jsx` |
 | `l1_incorrect` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` |
 | `l2_incorrect` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` |
 | `l3_incorrect` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` | `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` |
@@ -398,6 +398,35 @@ Unit codes and order: **P1–P9** Present (tense 1), **F1–F2** Future (tense 3
 
 The six tables below are additive. The old verb tables (`user_verb_progress`, `user_verb_conjugation_progress`, etc.) and their rows were left untouched.
 
+### Path home — `VerbTrainer.jsx` (route `/verbs`)
+
+The Verb Trainer home is the Path; the old nine category cards are no longer shown.
+- **Layout:** lists all 18 `verb_units` in `sort_order` under three sections in learning order: **Present → Future → Past**. All units are open (no locking).
+- **Each row:** unit code, pattern name, verb count from `verb_unit_members`, and a status.
+- **Next up:** the first unit in `sort_order` that isn't mastered is highlighted "Next up", and a **Continue: <unit>** button at the top opens its unit page.
+- **Also on the page:** the Verb Dictionary button.
+- **Refresh:** data is refetched on every navigation to the screen (Rule 3, `location.key`).
+
+### Unit page — `VerbPathUnit.jsx` (route `/verb-path/:unitId`)
+
+Mobile-first. It shows:
+- the tense, the status pill, and the pattern card (`rule_text`, `example_forms` as chips)
+- the unit's verbs, excluding hidden ones, each with infinitive, italic English meaning, and that tense's yo and él/ella forms, plus a note counting hidden verbs
+- a **Start / Continue / Open** button (by status) that launches `/verb-unit/:unitId`
+- a **View verbs** button that opens `FilteredDictionaryModal` with the unit's visible verbs
+
+It is refetched on every navigation (Rule 3). The engine's exits (results-card back button, mastered and empty screens) return here.
+
+### Shared Path helpers — `src/utils/verbPath.js`
+
+- **`unitStatus(progressRow)`** is the ONLY place a unit's status is derived. Every surface calls it:
+  - **not started** (grey): no `user_unit_progress` row
+  - **in progress** (orange) with its stage name: a row with `sub_stage` 0–3. The row is created when the engine is first opened.
+  - **mastered** (green): `sub_stage` 4 or `mastered_at` set
+- **`nextUpUnit`**: the first unmastered unit in `sort_order`.
+- **`PATH_SECTIONS`**: the Present → Future → Past order, with each section's conjugation column.
+- **`loadPathOverview` / `loadPathUnit`**: the home and unit page data loads. The hidden filter reads only `user_verb_progress.verb_id where hidden = true`.
+
 ### Path conjugation engine — `VerbUnitQuiz.jsx` (route `/verb-unit/:unitId`)
 
 Runs any unit, by URL only for now (no navigation entry yet). It uses the same four sub-stages as the Verbs -AR flow: **0 Drag & Match**, **1 Multiple Choice**, **2 Pronoun** (typed), **3 Full Conjugation** (typed EN → pronoun + conjugation).
@@ -465,8 +494,8 @@ Primary key `(unit_id, verb_id)`; index on `verb_id`.
 
 | Table | Read by | Written by |
 |-------|---------|------------|
-| `verb_units` | `VerbUnitQuiz.jsx` (`loadUnit`: `id, tense, pattern_name, rule_text, example_forms`) | — (seeded by migration) |
-| `verb_unit_members` | `VerbUnitQuiz.jsx` (`loadUnit`: `verb_id` for the unit) | — (seeded by migration) |
+| `verb_units` | `VerbTrainer.jsx` (`loadPathOverview`: `id, sort_order, tense, pattern_name`); `VerbPathUnit.jsx` (`loadPathUnit`: all content columns); `VerbUnitQuiz.jsx` (`loadUnit`: `id, tense, pattern_name, rule_text, example_forms`) | — (seeded by migration) |
+| `verb_unit_members` | `VerbTrainer.jsx` (`loadPathOverview`: `unit_id`, for verb counts); `VerbPathUnit.jsx` and `VerbUnitQuiz.jsx` (`verb_id` for the unit) | — (seeded by migration) |
 
 ---
 
@@ -491,8 +520,8 @@ Primary key `(user_id, unit_id)`.
 
 | Column | Read by | Written by |
 |--------|---------|------------|
-| `sub_stage` | `VerbUnitQuiz.jsx` (`loadUnit`) | `VerbUnitQuiz.jsx`: created at 0 on first entry (upsert, ignore duplicates); advanced by `advanceFrom` |
-| `mastered_at` | — | `VerbUnitQuiz.jsx` (`advanceFrom`, when sub_stage reaches 4) |
+| `sub_stage` | `VerbUnitQuiz.jsx` (`loadUnit`); `VerbTrainer.jsx` and `VerbPathUnit.jsx` via `verbPath.js` → `unitStatus` | `VerbUnitQuiz.jsx`: created at 0 on first entry (upsert, ignore duplicates); advanced by `advanceFrom` |
+| `mastered_at` | `VerbTrainer.jsx` and `VerbPathUnit.jsx` via `verbPath.js` → `unitStatus` | `VerbUnitQuiz.jsx` (`advanceFrom`, when sub_stage reaches 4) |
 | `updated_at` | — | `VerbUnitQuiz.jsx` (`advanceFrom`) |
 
 ---

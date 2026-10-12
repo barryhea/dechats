@@ -109,7 +109,8 @@ export default function NavBar({ rightContent }) {
     location.pathname === '/custom-quiz' ||
     location.pathname.startsWith('/quiz/')
 
-  const verbActive = location.pathname === '/verbs' || location.pathname.startsWith('/verb-quiz/')
+  const verbActive = location.pathname === '/verbs' || location.pathname.startsWith('/verb-quiz/') ||
+    location.pathname.startsWith('/verb-path/') || location.pathname.startsWith('/verb-unit/')
   const dictActive = location.pathname === '/dictionary'
 
   return (

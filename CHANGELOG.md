@@ -6,6 +6,18 @@ Summarised from the last 30 commits. Grouped by feature area. Newest changes fir
 
 ## Project
 
+- **Verb Trainer home (`/verbs`) is now the verb learning Path.** The nine category cards are gone.
+  - **Layout:** all 18 units in sort order under Present → Future → Past, all open. Each shows code, pattern, verb count and a status: not started (grey), in progress with its stage name (orange), or mastered (green).
+  - **Next up:** the first unmastered unit is highlighted "Next up", and a **Continue: <unit>** button sits at the top.
+  - **Also on the page:** the Verb Dictionary button. Data is refetched on every visit (Rule 3).
+- **New unit page `/verb-path/:unitId` (`VerbPathUnit.jsx`).** It has:
+  - the pattern card (rule and examples) and the status
+  - the unit's visible verbs with English meaning and that tense's yo / él-ella forms
+  - a Start/Continue button into the engine
+  - **View verbs**, which opens the filtered Verb Dictionary
+- **One shared status helper:** `src/utils/verbPath.js` holds `unitStatus`, `nextUpUnit`, the section order and the Path data loaders. Status is derived nowhere else.
+- **Engine exits return to the unit page.** VerbUnitQuiz's results-card back button and its mastered and empty screens now go to `/verb-path/:unitId` ("← Back to P9") instead of `/verbs`. The NavBar highlights Verbs on the Path pages.
+- **Old screens unlinked from the home screen but kept:** VerbCategoryModal, the category quizzes, the AR tense quiz, Match Tree, Mastery quiz and verb custom quiz. Their code, routes and progress tables are untouched.
 - **New verb learning Path engine: `VerbUnitQuiz.jsx` at `/verb-unit/:unitId`** (reachable by URL only; no navigation entry yet).
   - **Flow:** runs any of the 18 units with the Verbs -AR flow: Drag & Match → Multiple Choice → Pronoun → Full Conjugation.
   - **Pass rule:** 5 cumulative correct per pronoun per sub-stage, monotonic.
