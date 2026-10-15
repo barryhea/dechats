@@ -87,16 +87,9 @@ These rules apply in every session. Do not deviate without explicit user instruc
 
 `Quiz.jsx`, `VerbQuiz.jsx`, `VerbArTenseQuiz.jsx` and `VerbUnitQuiz.jsx` are completely separate quiz engines. They serve different content types and different progress schemas. Never share state, helper functions, or scoring logic across these files. If a utility is genuinely common (e.g. a shuffle function) it must live in a shared util, not be copied from one quiz file to another. The conjugation engines (`VerbArTenseQuiz.jsx`, `VerbUnitQuiz.jsx`) share `src/utils/arConjugation.js`, `src/components/ConjQuestionCard.jsx` and `src/components/ConjResultsCard.jsx`.
 
-### 2 — Apply migrations with the shared-project flow, never `supabase db push`
+### 2 — Migrations follow the portfolio playbook
 
-Schema changes follow the master CLAUDE.md **section 15** three-stage flow: BUILD (write the file, don't run it) → REVIEW (Barry approves; amendments go in the same file) → APPLY (in the next prompt). DeChats lives on the **shared** Supabase project, where `supabase db push` refuses because the remote history holds other apps' versions. APPLY like this instead:
-
-```bash
-supabase db query --linked -f supabase/migrations/<version>_<name>.sql
-supabase migration repair --status applied <version> --linked
-```
-
-The second command records **only that one version**. Never run the `supabase migration repair --status reverted …` the CLI may suggest — it would wipe other apps' migration history. After applying, verify with read-only queries, and don't leave an approved migration unapplied.
+DeChats is on the shared Supabase project, so migrations use the shared-project apply commands in the portfolio playbook (~/ClaudeProjects/_playbook/CLAUDE.md), never `supabase db push`.
 
 ### 3 — Always refetch Supabase data when navigating back to a screen
 
@@ -123,37 +116,7 @@ Each AR tense stage (Present / Past / Future) runs a 10-question session. The pa
 
 ## Completion reports
 
-At the end of **every** task — including one that failed, was abandoned partway, or was blocked — Claude Code writes a completion report. It is written in addition to the usual terminal summary, never instead of it.
-
-1. **File:** `completion-reports/<YYYY-MM-DD-HHMM>-<slug>.md`, using the local time the work finished (`date '+%Y-%m-%d-%H%M'`) and a short kebab-case slug for the task, e.g. `completion-reports/2026-10-12-0030-verb-path-migration.md`. Create the folder if it is missing.
-2. **Latest copy:** overwrite `completion-reports/LATEST.md` with an exact copy of the same report.
-3. **Content**, using these headings:
-   - **What changed** — the outcome in plain language, including what did *not* get done if the task failed.
-   - **Files touched** — every file created, edited or deleted.
-   - **Verification done** — what was checked and how (commands, queries, manual checks), with the result.
-   - **Unresolved** — anything not verified, needing a hand test, still broken, or waiting on a decision from Barry. Write "None" if empty.
-   - The commit hash, or "no commit".
-4. **Order:** write the report after the final commit/push/deploy so it carries the real hash and outcome, then commit the report itself.
-5. **In this repo the reports are committed to git** (not gitignored), so they travel with the code. This overrides the master file's suggestion to gitignore the folder.
-
----
-
-## Permission prompts
-
-Whenever Claude Code is about to ask for permission to run a bash command, it must first give a one-sentence plain English explanation of what the command does and why, written for a non-technical reader. Put the explanation in the reply immediately before the tool call, so it is on screen when the approval prompt appears.
-
-Format:
-
-> This command [plain English description of what it does], so that [reason].
-
-Guidelines:
-
-- No jargon, no flag names, no file paths unless the path is the point. Say "saves a snapshot of the changes" rather than "runs `git commit`".
-- Say what the command *changes*, and be explicit when it changes nothing (read-only) — that is the most useful thing to know before approving.
-- Flag anything hard to undo — deleting files, force-pushing, rewriting history, pushing to production — in the same sentence.
-- One command, one sentence. For a batched or piped command, describe the overall effect rather than each part.
-
-Scope note: this rule governs the text Claude writes before the call. The approval dialog itself is rendered by Claude Code and cannot be modified from this file, so the explanation appears in the message above it, not inside the prompt box.
+In this repo completion reports are committed to git (not gitignored), overriding the playbook's default.
 
 ---
 
