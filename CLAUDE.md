@@ -48,8 +48,8 @@
 | File | Route | Responsibility |
 |------|-------|---------------|
 | `src/pages/Home.jsx` | `/` | Landing screen — navigation cards to Vocabulary Trainer and Verb Trainer |
-| `src/pages/Login.jsx` | `/login` | Magic-link auth form — handles Supabase OTP sign-in |
-| `src/pages/AuthCallback.jsx` | `/auth/callback` | OAuth / magic-link callback handler — establishes session then redirects to home |
+| `src/pages/Login.jsx` | `/login` | Google sign-in page — a single "Sign in with Google" button calling `supabase.auth.signInWithOAuth` (Google OAuth via Supabase, no magic links), redirecting to `/auth/callback`; shows any OAuth error and sends an already signed-in user to `/` |
+| `src/pages/AuthCallback.jsx` | `/auth/callback` | OAuth callback handler — reads the Supabase session, creates the user's `profiles` row (email, name, avatar) on first sign-in, then redirects to home. Renders nothing |
 | `src/pages/Dashboard.jsx` | `/vocabulary` | Vocabulary Trainer home — theme cards with mastery progress, entry to vocab quiz and custom quiz |
 | `src/pages/Quiz.jsx` | `/quiz/:themeId` | Vocabulary quiz engine — L1 MC, L2 typed-EN, L3 typed-ES stages for a single vocab theme. Reads/writes `words` + `user_word_progress`. |
 | `src/pages/CustomQuiz.jsx` | `/custom-quiz` | Vocabulary custom quiz runner — receives word selections from Dashboard, runs a mixed session. Reads/writes `words` + `user_word_progress`. |
